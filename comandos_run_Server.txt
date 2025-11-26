@@ -98,3 +98,4 @@ OPCIÓN B: Generar 15 Usuarios Simulados (Prueba de Carga)
 
 - Error de red en el celular:
   Asegúrate de que tu celular y tu PC estén conectados a la misma red WiFi.
+https://github.com/rmessinaaa/proyecto_salud_mental_mindwell.git
