@@ -1,23 +1,71 @@
 // File: RegisterView.tsx
-import React from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { 
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert 
+} from "react-native";
 import { Heart, User, Mail, Lock, ArrowLeft } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { api } from "../services/api"; // <--- Asegúrate de importar tu API
 
 export default function RegisterView() {
   const router = useRouter();
+
+  // 1. Estados para guardar los datos del formulario
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  
+  // Estado de carga para bloquear el botón mientras se envía
+  const [loading, setLoading] = useState(false);
+
+  // 2. Función que maneja el registro
+  const handleRegister = async () => {
+    // Validaciones simples
+    if (!username || !email || !password) {
+      Alert.alert("Error", "Por favor completa todos los campos");
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Las contraseñas no coinciden");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Llamada al Backend
+      await api.registrarUsuario({
+        username: username,
+        email: email,
+        password: password
+      });
+
+      // Si todo sale bien:
+      Alert.alert("¡Éxito!", "Cuenta creada correctamente. Ahora inicia sesión.");
+      router.push("/login"); // Redirigimos al Login para obtener el Token
+      
+    } catch (error: any) {
+      // Manejo de errores del servidor (ej: username ya existe)
+      let mensajeError = "Ocurrió un error al registrarse";
+      if (error.message) {
+        mensajeError = error.message; // Muestra el error que manda Django
+      }
+      Alert.alert("Error de Registro", mensajeError);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.box}>
 
-        {/* Botón volver */}
         <TouchableOpacity style={styles.backButton} onPress={() => router.push("/login")}>
           <ArrowLeft size={20} color="#8b5cf6" />
           <Text style={styles.backButtonText}>Volver al inicio</Text>
         </TouchableOpacity>
 
-        {/* Header */}
         <View style={styles.header}>
           <View style={styles.iconWrapper}>
             <Heart size={32} color="#fff" />
@@ -26,58 +74,83 @@ export default function RegisterView() {
           <Text style={styles.subtitle}>Comienza tu viaje hacia el bienestar</Text>
         </View>
 
-        {/* Formulario */}
         <View style={styles.card}>
-          {/* Nombre */}
-          <Text style={styles.label}>Nombre completo</Text>
+          {/* Input: Username */}
+          <Text style={styles.label}>Nombre de usuario</Text>
           <View style={styles.inputWrapper}>
             <User size={20} color="#94a3b8" style={styles.inputIcon} />
-            <TextInput style={styles.input} placeholder="Tu nombre" />
+            <TextInput 
+              style={styles.input} 
+              placeholder="Tu usuario único" 
+              value={username}
+              onChangeText={setUsername} // Actualiza el estado
+              autoCapitalize="none"
+            />
           </View>
 
-          {/* Email */}
+          {/* Input: Email */}
           <Text style={styles.label}>Correo electrónico</Text>
           <View style={styles.inputWrapper}>
             <Mail size={20} color="#94a3b8" style={styles.inputIcon} />
-            <TextInput style={styles.input} placeholder="tu@email.com" keyboardType="email-address" />
+            <TextInput 
+              style={styles.input} 
+              placeholder="tu@email.com" 
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+            />
           </View>
 
-          {/* Contraseña */}
+          {/* Input: Password */}
           <Text style={styles.label}>Contraseña</Text>
           <View style={styles.inputWrapper}>
             <Lock size={20} color="#94a3b8" style={styles.inputIcon} />
-            <TextInput style={styles.input} placeholder="Mínimo 8 caracteres" secureTextEntry />
+            <TextInput 
+              style={styles.input} 
+              placeholder="Mínimo 8 caracteres" 
+              secureTextEntry 
+              value={password}
+              onChangeText={setPassword}
+            />
           </View>
 
-          {/* Confirmar contraseña */}
+          {/* Input: Confirmar Password */}
           <Text style={styles.label}>Confirmar contraseña</Text>
           <View style={styles.inputWrapper}>
             <Lock size={20} color="#94a3b8" style={styles.inputIcon} />
-            <TextInput style={styles.input} placeholder="Repite tu contraseña" secureTextEntry />
+            <TextInput 
+              style={styles.input} 
+              placeholder="Repite tu contraseña" 
+              secureTextEntry 
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
           </View>
 
-          {/* Checkboxes */}
+          {/* Checkboxes (Visuales por ahora) */}
           <View style={styles.checkboxContainer}>
             <View style={styles.rowCenter}>
               <View style={styles.checkbox} />
               <Text style={styles.checkboxText}>
-                Acepto los Términos de Servicio y la Política de Privacidad
-              </Text>
-            </View>
-            <View style={styles.rowCenter}>
-              <View style={styles.checkbox} />
-              <Text style={styles.checkboxText}>
-                Deseo recibir consejos y actualizaciones por correo
+                Acepto los Términos de Servicio
               </Text>
             </View>
           </View>
 
-          {/* Crear cuenta */}
-          <TouchableOpacity style={styles.button} onPress={() => router.push("/dashboard")}>
-            <Text style={styles.buttonText}>Crear cuenta</Text>
+          {/* Botón Crear Cuenta */}
+          <TouchableOpacity 
+            style={[styles.button, loading && { opacity: 0.7 }]} 
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Crear cuenta</Text>
+            )}
           </TouchableOpacity>
 
-          {/* Registro */}
           <Text style={styles.registerText}>
             ¿Ya tienes cuenta?{" "}
             <Text style={styles.link} onPress={() => router.push("/login")}>
@@ -90,9 +163,7 @@ export default function RegisterView() {
   );
 }
 
-// ----------------------
-// STYLES
-// ----------------------
+// Los estilos se mantienen exactamente igual a tu código original...
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center", padding: 16 },
   box: { width: "100%", maxWidth: 380 },

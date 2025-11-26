@@ -1,88 +1,135 @@
-// =============================
-// File: components/DiaryView.tsx
-// =============================
-
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator, Alert, RefreshControl
 } from "react-native";
+import { useFocusEffect } from "expo-router"; 
 
-// IMPORTANTE: Asegúrate de que estas rutas sean correctas en tu carpeta
+// API
+import { api, RegistroDiario } from "../services/api";
+
+// Componentes UI
 import { Card } from "./ui/card";
-import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 
 // Icons
-import {
-  Heart,
-  CloudRain,
-  Sun,
-  Calendar,
-  Clock,
-  Camera,
-  Plus,
-} from "lucide-react-native";
+import { Heart, Calendar, Clock, Plus, Minus, Zap, Activity } from "lucide-react-native";
 
-// DATA
-const emotions = [
-  { icon: "😄", label: "Feliz", color: "#facc15" },
-  { icon: "😊", label: "Contento", color: "#4ade80" },
-  { icon: "😐", label: "Neutral", color: "#9ca3af" },
-  { icon: "😕", label: "Triste", color: "#60a5fa" },
-  { icon: "😢", label: "Muy triste", color: "#2563eb" },
-  { icon: "😠", label: "Enojado", color: "#ef4444" },
-  { icon: "😰", label: "Ansioso", color: "#f97316" },
-  { icon: "😌", label: "Tranquilo", color: "#2dd4bf" },
+const emotionsList = [
+  { value: "feliz", icon: "😄", label: "Feliz", color: "#facc15" },
+  { value: "contento", icon: "😊", label: "Contento", color: "#4ade80" },
+  { value: "neutral", icon: "😐", label: "Neutral", color: "#9ca3af" },
+  { value: "triste", icon: "😕", label: "Triste", color: "#60a5fa" },
+  { value: "ansioso", icon: "😰", label: "Ansioso", color: "#f97316" },
+  { value: "enojado", icon: "😠", label: "Enojado", color: "#ef4444" },
 ];
 
-const previousEntries = [
-  {
-    date: "10 Nov 2025",
-    time: "18:30",
-    emotion: "😊",
-    mood: "Contento",
-    note: "Tuve un día productivo. Completé todas mis tareas y salí a caminar por la tarde.",
-    activities: ["Ejercicio", "Trabajo"],
-  },
-  {
-    date: "9 Nov 2025",
-    time: "20:15",
-    emotion: "😐",
-    mood: "Neutral",
-    note: "Día normal. Un poco cansado pero en general bien.",
-    activities: ["Descanso"],
-  },
-  {
-    date: "8 Nov 2025",
-    time: "19:00",
-    emotion: "😄",
-    mood: "Feliz",
-    note: "¡Excelente día! Salí con amigos y me divertí mucho. Me siento lleno de energía.",
-    activities: ["Social", "Ocio"],
-  },
-];
+const activitiesList = ["Trabajo", "Ejercicio", "Social", "Ocio", "Descanso", "Estudio", "Familia"];
 
-// =============================
-// COMPONENT
-// =============================
+export default function DiaryView() {
+  // ESTADOS DEL FORMULARIO
+  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
+  
+  // ✅ NUEVOS ESTADOS PARA LOS NIVELES (Empiezan en 5)
+  const [intensity, setIntensity] = useState(5);
+  const [energy, setEnergy] = useState(5);
 
-function DiaryView() {
-  const [selectedEmotion, setSelectedEmotion] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // ESTADOS DE LISTA
+  const [entries, setEntries] = useState<RegistroDiario[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchEntries = async () => {
+    try {
+      const data = await api.getRegistros();
+      setEntries(data);
+    } catch (error) {
+      console.log("Error cargando diario");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchEntries();
+    }, [])
+  );
+
+  const toggleActivity = (activity: string) => {
+    if (selectedActivities.includes(activity)) {
+      setSelectedActivities(prev => prev.filter(a => a !== activity));
+    } else {
+      setSelectedActivities(prev => [...prev, activity]);
+    }
+  };
+
+  // ✅ FUNCIONES PARA CONTROLAR LOS NÚMEROS
+  const handleIntensityChange = (delta: number) => {
+    setIntensity(prev => Math.max(1, Math.min(10, prev + delta)));
+  };
+  
+  const handleEnergyChange = (delta: number) => {
+    setEnergy(prev => Math.max(1, Math.min(10, prev + delta)));
+  };
+
+  // GUARDAR ENTRADA
+  const handleSave = async () => {
+    if (!selectedEmotion) {
+      Alert.alert("Falta información", "Por favor selecciona una emoción.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const nuevaEntrada: RegistroDiario = {
+        emocion: selectedEmotion,
+        // ✅ AHORA USAMOS LOS VALORES REALES
+        nivel_intensidad: intensity, 
+        nivel_energia: energy,
+        nota: note,
+        actividades: selectedActivities.join(","), 
+      };
+
+      await api.crearRegistro(nuevaEntrada);
+      
+      Alert.alert("¡Guardado!", "Tu registro ha sido añadido.");
+      
+      // Limpiar formulario
+      setSelectedEmotion(null);
+      setNote("");
+      setSelectedActivities([]);
+      setIntensity(5); // Resetear a 5
+      setEnergy(5);    // Resetear a 5
+      
+      fetchEntries();
+
+    } catch (error) {
+      Alert.alert("Error", "No se pudo guardar el registro.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getEmotionIcon = (val: string) => {
+    const found = emotionsList.find(e => e.value === val);
+    return found ? found.icon : "❓";
+  };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container} 
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchEntries(); }} />}
+    >
       <View style={styles.inner}>
         {/* HEADER */}
         <View>
           <Text style={styles.title}>Diario Emocional</Text>
-          <Text style={styles.subtitle}>
-            Registra cómo te sientes y reflexiona sobre tu día
-          </Text>
+          <Text style={styles.subtitle}>Registra cómo te sientes hoy</Text>
         </View>
 
         {/* NUEVA ENTRADA */}
@@ -91,151 +138,168 @@ function DiaryView() {
             <Text style={styles.sectionTitle}>Nueva entrada</Text>
 
             <View style={styles.space}>
-              {/* EMOCIONES */}
-              <View>
-                <Text style={styles.label}>¿Cómo te sientes ahora?</Text>
+              {/* 1. EMOCIONES */}
+              <Text style={styles.label}>¿Cómo te sientes?</Text>
+              <View style={styles.emotionGrid}>
+                {emotionsList.map((emotion, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => setSelectedEmotion(emotion.value)}
+                    style={[
+                      styles.emotionButton,
+                      { backgroundColor: emotion.color },
+                      selectedEmotion === emotion.value && styles.emotionSelected,
+                    ]}
+                  >
+                    <Text style={styles.emotionIcon}>{emotion.icon}</Text>
+                    <Text style={styles.emotionText}>{emotion.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-                <View style={styles.emotionGrid}>
-                  {emotions.map((emotion, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      onPress={() => setSelectedEmotion(idx)}
-                      style={[
-                        styles.emotionButton,
-                        { backgroundColor: emotion.color },
-                        selectedEmotion === idx && styles.emotionSelected,
-                      ]}
-                    >
-                      <Text style={styles.emotionIcon}>{emotion.icon}</Text>
-                      <Text style={styles.emotionText}>{emotion.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+              {/* 2. CONTROLES DE INTENSIDAD Y ENERGÍA (NUEVO) */}
+              <View style={styles.slidersRow}>
+                {/* Intensidad */}
+                <View style={styles.sliderContainer}>
+                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+                        <Activity size={16} color="#8b5cf6" style={{marginRight: 6}}/>
+                        <Text style={styles.labelSmall}>Intensidad Emoción</Text>
+                    </View>
+                    <View style={styles.counterRow}>
+                        <TouchableOpacity onPress={() => handleIntensityChange(-1)} style={styles.counterBtn}>
+                            <Minus size={18} color="#4b5563"/>
+                        </TouchableOpacity>
+                        <Text style={styles.counterValue}>{intensity}</Text>
+                        <TouchableOpacity onPress={() => handleIntensityChange(1)} style={styles.counterBtn}>
+                            <Plus size={18} color="#4b5563"/>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Energía */}
+                <View style={styles.sliderContainer}>
+                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+                        <Zap size={16} color="#ec4899" style={{marginRight: 6}}/>
+                        <Text style={styles.labelSmall}>Nivel Energía</Text>
+                    </View>
+                    <View style={styles.counterRow}>
+                        <TouchableOpacity onPress={() => handleEnergyChange(-1)} style={styles.counterBtn}>
+                            <Minus size={18} color="#4b5563"/>
+                        </TouchableOpacity>
+                        <Text style={styles.counterValue}>{energy}</Text>
+                        <TouchableOpacity onPress={() => handleEnergyChange(1)} style={styles.counterBtn}>
+                            <Plus size={18} color="#4b5563"/>
+                        </TouchableOpacity>
+                    </View>
                 </View>
               </View>
 
-              {/* INTENSIDAD */}
-              <View>
-                <Text style={styles.label}>Intensidad de la emoción</Text>
-
-                <View style={styles.intensityRow}>
-                  <Text style={styles.intensityText}>Leve</Text>
-                  <View style={styles.sliderPlaceholder} />
-                  <Text style={styles.intensityText}>Intensa</Text>
-                  <Badge>5/10</Badge>
-                </View>
-              </View>
-
-              {/* NOTAS */}
-              <View>
-                <Text style={styles.label}>¿Qué pasó hoy?</Text>
+              {/* 3. NOTAS */}
+              <View style={{marginTop: 15}}>
+                <Text style={styles.label}>Nota del día</Text>
                 <TextInput
                   placeholder="Describe tu día..."
                   multiline
-                  numberOfLines={6}
+                  numberOfLines={4}
                   style={styles.textarea}
+                  value={note}
+                  onChangeText={setNote}
                 />
               </View>
 
-              {/* ACTIVIDADES */}
-              <View>
-                <Text style={styles.label}>Actividades del día</Text>
+              {/* 4. ACTIVIDADES */}
+              <View style={{marginTop: 15}}>
+                <Text style={styles.label}>Actividades</Text>
                 <View style={styles.activitiesRow}>
-                  {[
-                    "Trabajo",
-                    "Ejercicio",
-                    "Social",
-                    "Ocio",
-                    "Descanso",
-                    "Estudio",
-                    "Familia",
-                    "Hobby",
-                  ].map((activity, idx) => (
-                    <Button key={idx}>
-                      {/* @ts-ignore: TypeScript se queja del color, pero funciona */}
-                      <Plus size={14} color="#000" />
-                      {activity}
-                    </Button>
-                  ))}
-                </View>
-              </View>
-
-              {/* FACTORES */}
-              <View style={styles.factorsGrid}>
-                <View>
-                  <Text style={styles.label}>Clima emocional</Text>
-                  <View style={styles.rowInline}>
-                    <Button>
-                      {/* @ts-ignore */}
-                      <Sun size={16} color="#000" />
-                      Soleado
-                    </Button>
-                    <Button>
-                      {/* @ts-ignore */}
-                      <CloudRain size={16} color="#000" />
-                      Nublado
-                    </Button>
-                  </View>
-                </View>
-
-                <View>
-                  <Text style={styles.label}>Adjuntar</Text>
-                  <Button>
-                    {/* @ts-ignore */}
-                    <Camera size={16} color="#000" />
-                    Agregar foto
-                  </Button>
+                  {activitiesList.map((activity, idx) => {
+                    const isSelected = selectedActivities.includes(activity);
+                    return (
+                      <TouchableOpacity 
+                        key={idx} 
+                        style={[styles.activityBadge, isSelected && styles.activitySelected]}
+                        onPress={() => toggleActivity(activity)}
+                      >
+                          <Plus size={12} color={isSelected ? "#fff" : "#000"} />
+                          <Text style={{color: isSelected ? "#fff" : "#000", marginLeft: 4}}>{activity}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 
               {/* BOTONES */}
-              <View style={styles.rowInline}>
-                <Button>
-                  {/* @ts-ignore */}
-                  <Heart size={16} color="#fff" />
-                  Guardar
-                </Button>
-                <Button>Cancelar</Button>
+              <View style={[styles.rowInline, { marginTop: 20 }]}>
+                <TouchableOpacity 
+                   style={[styles.saveButton, saving && {opacity: 0.7}]}
+                   onPress={handleSave}
+                   disabled={saving}
+                >
+                  {saving ? <ActivityIndicator color="#fff"/> : (
+                    <>
+                      <Heart size={16} color="#fff" style={{marginRight: 6}}/>
+                      <Text style={{color: 'white', fontWeight: 'bold'}}>Guardar Entrada</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
           </View>
         </Card>
 
-        {/* ENTRADAS ANTERIORES */}
+        {/* LISTA DE ENTRADAS */}
         <View>
           <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Entradas recientes</Text>
+            <Text style={styles.sectionTitle}>Historial</Text>
           </View>
 
           <View style={styles.space}>
-            {previousEntries.map((entry, idx) => (
-              <Card key={idx}>
-                <View style={styles.cardEntry}>
-                  <View style={styles.entryRow}>
-                    <Text style={styles.entryEmotion}>{entry.emotion}</Text>
+            {loading ? (
+              <ActivityIndicator size="large" color="#a855f7" />
+            ) : entries.length === 0 ? (
+              <Text style={{textAlign: 'center', color: '#94a3b8', marginTop: 20}}>
+                No hay registros aún. ¡Crea el primero!
+              </Text>
+            ) : (
+              entries.map((entry, idx) => (
+                <Card key={idx}>
+                  <View style={styles.cardEntry}>
+                    <View style={styles.entryRow}>
+                      <Text style={styles.entryEmotion}>{getEmotionIcon(entry.emocion)}</Text>
 
-                    <View style={styles.entryContent}>
-                      <View style={styles.entryHeader}>
-                        <Text style={styles.entryMood}>{entry.mood}</Text>
-                        {/* @ts-ignore */}
-                        <Calendar size={14} color="#64748b" />
-                        <Text style={styles.entryMeta}>{entry.date}</Text>
-                        {/* @ts-ignore */}
-                        <Clock size={14} color="#64748b" />
-                        <Text style={styles.entryMeta}>{entry.time}</Text>
-                      </View>
+                      <View style={styles.entryContent}>
+                        <View style={styles.entryHeader}>
+                          <Text style={styles.entryMood}>{entry.emocion.toUpperCase()}</Text>
+                          
+                          {/* Mostrar niveles en el historial */}
+                          <View style={styles.levelsBadge}>
+                             <Activity size={10} color="#8b5cf6"/>
+                             <Text style={styles.levelText}>{entry.nivel_intensidad}</Text>
+                             <View style={{width: 6}}/>
+                             <Zap size={10} color="#ec4899"/>
+                             <Text style={styles.levelText}>{entry.nivel_energia}</Text>
+                          </View>
+                        </View>
+                        
+                        <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 4}}>
+                            <Calendar size={12} color="#94a3b8" />
+                            <Text style={styles.entryMeta}>{entry.fecha}</Text>
+                            <Clock size={12} color="#94a3b8" style={{marginLeft: 8}}/>
+                            <Text style={styles.entryMeta}>{entry.hora ? entry.hora.substring(0,5) : ''}</Text>
+                        </View>
 
-                      <Text style={styles.entryNote}>{entry.note}</Text>
+                        {entry.nota ? <Text style={styles.entryNote}>{entry.nota}</Text> : null}
 
-                      <View style={styles.activitiesRow}>
-                        {entry.activities.map((a, i) => (
-                          <Badge key={i}>{a}</Badge>
-                        ))}
+                        <View style={styles.activitiesRow}>
+                          {entry.actividades ? entry.actividades.split(',').map((a, i) => (
+                            <Badge key={i}>{a}</Badge>
+                          )) : null}
+                        </View>
                       </View>
                     </View>
                   </View>
-                </View>
-              </Card>
-            ))}
+                </Card>
+              ))
+            )}
           </View>
         </View>
       </View>
@@ -243,106 +307,44 @@ function DiaryView() {
   );
 }
 
-export default DiaryView;
-
-// =============================
-// STYLES
-// =============================
-
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#f8fafc" },
-  inner: { flex: 1 },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 4,
-  },
+  inner: { flex: 1, paddingBottom: 40 },
+  title: { fontSize: 24, fontWeight: "700", color: "#0f172a", marginBottom: 4 },
   subtitle: { color: "#475569", marginBottom: 12 },
-
   cardContent: { padding: 16 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1e293b",
-    marginBottom: 12,
-  },
-  label: { color: "#334155", marginBottom: 8 },
-  space: { marginTop: 16 },
-
+  sectionTitle: { fontSize: 18, fontWeight: "600", color: "#1e293b", marginBottom: 12 },
+  label: { color: "#334155", marginBottom: 8, fontWeight: '600', fontSize: 14 },
+  labelSmall: { color: "#64748b", fontWeight: '500', fontSize: 12 },
+  space: { marginTop: 8 },
   emotionGrid: { flexDirection: "row", flexWrap: "wrap" },
-  emotionButton: {
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-    width: 70,
-    margin: 6,
-  },
-  emotionSelected: { borderWidth: 2, borderColor: "#7c3aed" },
+  emotionButton: { borderRadius: 12, padding: 12, alignItems: "center", width: "30%", margin: "1.5%" },
+  emotionSelected: { borderWidth: 3, borderColor: "#7c3aed" },
   emotionIcon: { fontSize: 26 },
-  emotionText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#1e293b",
-    marginTop: 6,
-  },
-
-  intensityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  intensityText: { fontSize: 14, color: "#475569" },
-  sliderPlaceholder: {
-    flex: 1,
-    height: 6,
-    marginHorizontal: 8,
-    borderRadius: 10,
-    backgroundColor: "#e2e8f0",
-  },
-
-  textarea: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 12,
-    minHeight: 120,
-    textAlignVertical: "top",
-  },
-
+  emotionText: { fontSize: 12, fontWeight: "500", color: "#1e293b", marginTop: 6 },
+  textarea: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", padding: 12, minHeight: 80, textAlignVertical: "top" },
   activitiesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-
-  factorsGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 16,
-  },
+  activityBadge: { flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 20, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
+  activitySelected: { backgroundColor: '#a855f7', borderColor: '#a855f7' },
   rowInline: { flexDirection: "row", alignItems: "center", gap: 8 },
-  rowBetween: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  cardEntry: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-  },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20 },
+  saveButton: { backgroundColor: "#a855f7", flexDirection: 'row', alignItems: 'center', justifyContent:'center', paddingVertical: 12, borderRadius: 10, width: '100%' },
+  cardEntry: { backgroundColor: "#fff", padding: 16, borderRadius: 16, marginBottom: 12 },
   entryRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
   entryEmotion: { fontSize: 32 },
   entryContent: { flex: 1 },
-  entryHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 6,
-    flexWrap: "wrap",
-  },
-  entryMood: { fontSize: 16, fontWeight: "600", color: "#0f172a" },
-  entryMeta: { fontSize: 12, color: "#64748b", marginHorizontal: 6 },
-  entryNote: { color: "#475569", marginVertical: 8 },
+  entryHeader: { flexDirection: "row", alignItems: "center", justifyContent: 'space-between' },
+  entryMood: { fontSize: 14, fontWeight: "bold", color: "#0f172a" },
+  entryMeta: { fontSize: 12, color: "#94a3b8", marginLeft: 4 },
+  entryNote: { color: "#475569", marginVertical: 8, fontStyle: 'italic', fontSize: 13 },
+  
+  // Nuevos estilos para los contadores
+  slidersRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 15 },
+  sliderContainer: { width: '48%', backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  counterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  counterBtn: { backgroundColor: '#fff', padding: 6, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+  counterValue: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
+  
+  levelsBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  levelText: { fontSize: 10, fontWeight: 'bold', marginLeft: 2, color: '#4b5563' },
 });

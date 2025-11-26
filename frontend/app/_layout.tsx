@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
-import { useColorScheme } from '../hooks/use-color-scheme'; // Asegúrate que la ruta del hook sea correcta
+import { useColorScheme } from '../hooks/use-color-scheme';
 import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
@@ -9,22 +9,23 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <StatusBar style="auto" />
-      <Stack>
-        {/* 1. Layout principal de pestañas (La carpeta (tabs)) */}
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
-        {/* 2. Pantallas sueltas (fuera de las pestañas) */}
+      <Stack initialRouteName="index"> 
+        {/* 1. Pantalla de carga inicial (Check Session) */}
         <Stack.Screen name="index" options={{ headerShown: false }} /> 
-        <Stack.Screen name="login" options={{ title: 'Iniciar sesión', headerShown: false }} />
-        <Stack.Screen name="register" options={{ title: 'Registrarse', headerShown: false }} />
+
+        {/* 2. Autenticación */}
+        <Stack.Screen name="login" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
         
-        {/* 3. Otras pantallas secundarias (si las usas) */}
+        {/* 3. App Principal (Tabs) */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
+
+        {/* 4. Pantallas Secundarias */}
         <Stack.Screen name="achievements" options={{ title: 'Logros' }} />
         <Stack.Screen name="calendar" options={{ title: 'Calendario' }} />
         <Stack.Screen name="charts" options={{ title: 'Gráficos' }} />
         <Stack.Screen name="community" options={{ title: 'Comunidad' }} />
-
-        {/* 4. Ruta comodín para manejar errores 404 (opcional) */}
+        
         <Stack.Screen name="+not-found" />
       </Stack>
     </ThemeProvider>

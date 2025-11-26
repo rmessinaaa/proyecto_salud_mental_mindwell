@@ -1,11 +1,46 @@
 // File: LoginView.tsx
-import React from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import { Heart, Mail, Lock } from "lucide-react-native";
+import React, { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { Heart, User, Lock } from "lucide-react-native"; // Cambié Mail por User para coincidir con el backend
 import { useRouter } from "expo-router";
+import { api } from "../services/api"; // <--- Importamos la API
 
 export default function LoginView() {
   const router = useRouter();
+
+  // 1. Estados para guardar los datos
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // 2. Función lógica de Login
+  const handleLogin = async () => {
+    if (!username || !password) {
+      Alert.alert("Atención", "Por favor ingresa tu usuario y contraseña");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Llamamos a tu Backend
+      const response = await api.login({
+        username: username,
+        password: password
+      });
+
+      console.log("Login exitoso. Token:", response.token);
+      
+      // Si todo sale bien, vamos al Dashboard
+      // Usamos 'replace' para que no puedan volver al login con el botón 'atrás'
+      router.replace("/(tabs)/dashboard");
+
+    } catch (error: any) {
+      Alert.alert("Error de acceso", error.message || "Credenciales incorrectas");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -22,13 +57,17 @@ export default function LoginView() {
 
         {/* Formulario */}
         <View style={styles.card}>
-          {/* Email */}
-          <Text style={styles.label}>Correo electrónico</Text>
+          
+          {/* CAMBIO: Usuario (Django usa username por defecto) */}
+          <Text style={styles.label}>Nombre de usuario</Text>
           <View style={styles.inputWrapper}>
-            <Mail size={20} color="#94a3b8" style={styles.inputIcon} />
+            <User size={20} color="#94a3b8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="usuario@ejemplo.com"
+              placeholder="Tu nombre de usuario"
+              value={username}           // <--- Conectado
+              onChangeText={setUsername} // <--- Conectado
+              autoCapitalize="none"
             />
           </View>
 
@@ -40,6 +79,8 @@ export default function LoginView() {
               style={styles.input}
               placeholder="••••••••"
               secureTextEntry
+              value={password}           // <--- Conectado
+              onChangeText={setPassword} // <--- Conectado
             />
           </View>
 
@@ -55,9 +96,17 @@ export default function LoginView() {
             </TouchableOpacity>
           </View>
 
-          {/* Login */}
-          <TouchableOpacity style={styles.button} onPress={() => console.log("Login")}>
-            <Text style={styles.buttonText}>Iniciar sesión</Text>
+          {/* Botón Login con Loading */}
+          <TouchableOpacity 
+            style={[styles.button, loading && { opacity: 0.7 }]} 
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Iniciar sesión</Text>
+            )}
           </TouchableOpacity>
 
           {/* Registro */}
@@ -78,7 +127,7 @@ export default function LoginView() {
 }
 
 // ----------------------
-// STYLES
+// STYLES (Tus estilos originales, sin cambios)
 // ----------------------
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center", padding: 16 },

@@ -1,0 +1,62 @@
+# ========================
+#   GLOBAL / SISTEMA
+# ========================
+.DS_Store
+Thumbs.db
+*.log
+
+# ========================
+#   BACKEND (Django/Python)
+# ========================
+# Entornos virtuales
+venv/
+env/
+.env
+.venv/
+
+# Archivos compilados y cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Base de datos local (Opcional: borra esto si quieres subir una DB de ejemplo)
+*.sqlite3
+db.sqlite3
+
+# Archivos de media (imágenes subidas por usuarios en dev)
+media/
+
+# ========================
+#   FRONTEND (React Native / Expo)
+# ========================
+# Dependencias (PESAN GIGAS - NO SUBIR)
+node_modules/
+
+# Expo & Metro
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# Archivos Nativos Generados (android/ios se generan con 'prebuild', no se suben en Expo Managed)
+/android
+/ios
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# TypeScript
+*.tsbuildinfo
+
+# ========================
+#   DOCKER
+# ========================
+.docker/

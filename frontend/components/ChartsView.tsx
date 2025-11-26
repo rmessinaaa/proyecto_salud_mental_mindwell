@@ -1,227 +1,308 @@
-import React from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Dimensions } from "react-native";
-import { Calendar, Download, Sparkles } from "lucide-react-native";
+import React, { useState, useCallback } from "react";
+import { 
+  View, 
+  Text, 
+  ScrollView, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Dimensions, 
+  ActivityIndicator, 
+  RefreshControl 
+} from "react-native";
+import { Calendar, Sparkles, BarChart3, PieChart as PieIcon } from "lucide-react-native";
 import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
+import { useFocusEffect } from "expo-router";
+import { api } from "../services/api";
 
 const screenWidth = Dimensions.get("window").width;
 
-// --------------------------
-// DATOS TRANSFORMADOS
-// --------------------------
+// ==========================================
+// INTERFACES (Coinciden con Django DashboardStatsView)
+// ==========================================
 
-// 1. Datos para LineChart (Estado de ánimo vs Energía)
-// Gifted Charts usa arrays de objetos {value, label}
-const moodData = [
-  { value: 7, label: "Lun" },
-  { value: 6, label: "Mar" },
-  { value: 8, label: "Mié" },
-  { value: 7, label: "Jue" },
-  { value: 9, label: "Vie" },
-  { value: 8, label: "Sáb" },
-  { value: 7, label: "Dom" },
-];
+interface PieData {
+  value: number;
+  count: number;
+  color: string;
+  text: string;
+  label: string;
+}
 
-const energyData = [
-  { value: 6 },
-  { value: 5 },
-  { value: 7 },
-  { value: 8 },
-  { value: 9 },
-  { value: 7 },
-  { value: 6 },
-];
+interface LineData {
+  value: number;
+  label?: string; // Solo data1 lleva labels
+}
 
-// 2. Datos para BarChart (Impacto)
-const activityBarData = [
-  { value: 8.5, label: "Ejer", frontColor: '#8b5cf6' },
-  { value: 7.8, label: "Soc", frontColor: '#a855f7' },
-  { value: 7.5, label: "Hobby", frontColor: '#d946ef' },
-  { value: 6.9, label: "Desc", frontColor: '#ec4899' },
-  { value: 5.2, label: "Trab", frontColor: '#f43f5e' },
-];
+interface BarData {
+  value: number;
+  label: string;
+  frontColor: string;
+}
 
-// 3. Datos para PieChart (Emociones)
-const emotionPieData = [
-  { value: 35, color: "#16a34a", text: "35%" }, // Feliz
-  { value: 25, color: "#84cc16", text: "25%" }, // Contento
-  { value: 20, color: "#94a3b8", text: "20%" }, // Neutral
-  { value: 15, color: "#3b82f6", text: "15%" }, // Triste
-  { value: 5, color: "#f97316", text: "5%" },   // Ansioso
-];
+interface DashboardStats {
+  pie_chart: PieData[];
+  line_mood: LineData[];
+  line_energy: LineData[];
+  bar_data: BarData[];
+  promedio_general: number;
+  total_dias: number;
+}
 
-// Leyenda manual para el Pie Chart (para que se vea ordenado)
-const pieLegend = [
-  { label: "Feliz", color: "#16a34a" },
-  { label: "Contento", color: "#84cc16" },
-  { label: "Neutral", color: "#94a3b8" },
-  { label: "Triste", color: "#3b82f6" },
-  { label: "Ansioso", color: "#f97316" },
-];
+// ==========================================
+// COMPONENTE PRINCIPAL
+// ==========================================
 
 export default function ChartsView() {
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Obtener datos del Backend
+  const fetchStats = async () => {
+    try {
+      const data = await api.getStats();
+      // console.log("Datos recibidos:", JSON.stringify(data, null, 2)); // Debug si es necesario
+      setStats(data);
+    } catch (error) {
+      console.log("Error cargando gráficos:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [])
+  );
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#8b5cf6" />
+        <Text style={styles.loadingText}>Analizando tus emociones...</Text>
+      </View>
+    );
+  }
+
+  // Validaciones para mostrar estado vacío
+  const hasLineData = stats?.line_mood && stats.line_mood.length > 0;
+  const hasPieData = stats?.pie_chart && stats.pie_chart.length > 0;
+  const hasBarData = stats?.bar_data && stats.bar_data.length > 0;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={{ paddingBottom: 60 }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} />
+      }
+    >
       {/* Header */}
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.title}>Gráficos y Análisis</Text>
-          <Text style={styles.subtitle}>Visualiza tu progreso</Text>
+          <Text style={styles.title}>Tu Análisis</Text>
+          <Text style={styles.subtitle}>Estadísticas basadas en tu diario</Text>
         </View>
-
-        <View style={styles.headerButtons}>
-          <TouchableOpacity style={styles.buttonSmall}>
-            {/* @ts-ignore */}
-            <Calendar size={16} color="#333" />
-            <Text style={styles.btnText}>Semana</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.buttonSmall, { marginLeft: 8 }]}>
-            {/* @ts-ignore */}
-            <Download size={16} color="#333" />
-            <Text style={styles.btnText}>Exportar</Text>
-          </TouchableOpacity>
+        <View style={styles.headerIcon}>
+           <BarChart3 size={24} color="#8b5cf6" />
         </View>
       </View>
 
-      {/* Quick cards */}
+      {/* Tarjetas Resumen */}
       <View style={styles.cardRow}>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Estado promedio</Text>
-          <Text style={styles.cardValue}>7.4</Text>
+          <Text style={styles.cardLabel}>Promedio Ánimo</Text>
+          <Text style={[styles.cardValue, { color: (stats?.promedio_general || 0) >= 5 ? '#16a34a' : '#ea580c' }]}>
+            {stats?.promedio_general || "-"}
+            <Text style={{fontSize: 14, color: '#9ca3af'}}>/10</Text>
+          </Text>
         </View>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Días positivos</Text>
-          <Text style={styles.cardValue}>6/7</Text>
+          <Text style={styles.cardLabel}>Días Registrados</Text>
+          <Text style={styles.cardValue}>{stats?.total_dias || 0}</Text>
         </View>
       </View>
 
-      {/* ---------------- LINE CHART ---------------- */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tendencia semanal</Text>
-        <View style={{ paddingVertical: 10 }}>
-          <LineChart
-            data={moodData}
-            data2={energyData}
-            height={220}
-            width={screenWidth - 80} // Ajuste para padding
-            spacing={44}
-            initialSpacing={20}
-            color1="#8b5cf6"
-            color2="#ec4899"
-            textColor1="gray"
-            dataPointsColor1="#8b5cf6"
-            dataPointsColor2="#ec4899"
-            startFillColor1="#8b5cf6"
-            startFillColor2="#ec4899"
-            startOpacity={0.1}
-            endOpacity={0.1}
-            areaChart
-            curved
-            hideDataPoints={false}
-            showVerticalLines
-            verticalLinesColor="rgba(14,164,233,0.1)"
-            yAxisColor="#eee"
-            xAxisColor="#eee"
-            yAxisTextStyle={{ color: 'gray', fontSize: 10 }}
-          />
-          {/* Leyenda simple */}
-          <View style={styles.legendRow}>
-            <View style={[styles.dot, { backgroundColor: "#8b5cf6" }]} />
-            <Text style={styles.legendText}>Ánimo</Text>
-            <View style={[styles.dot, { backgroundColor: "#ec4899", marginLeft: 12 }]} />
-            <Text style={styles.legendText}>Energía</Text>
-          </View>
+      {!hasLineData && !hasPieData ? (
+        <View style={styles.emptyState}>
+          <Calendar size={48} color="#d1d5db" />
+          <Text style={styles.emptyTitle}>Aún no hay suficientes datos</Text>
+          <Text style={styles.emptyText}>
+            Comienza a escribir en tu diario para desbloquear tus estadísticas personales.
+          </Text>
         </View>
-      </View>
+      ) : (
+        <>
+          {/* ---------------- 1. GRÁFICO DE LÍNEAS (Ánimo vs Energía) ---------------- */}
+          {hasLineData && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Tendencia Semanal</Text>
+              <Text style={styles.sectionSubtitle}>Ánimo vs. Nivel de Energía</Text>
+              
+              <View style={{ marginTop: 20, overflow: 'hidden' }}>
+                <LineChart
+                  data={stats!.line_mood}
+                  data2={stats!.line_energy}
+                  height={220}
+                  width={screenWidth - 70} // Ajuste para padding
+                  spacing={40}
+                  initialSpacing={20}
+                  color1="#8b5cf6" // Violeta (Ánimo)
+                  color2="#ec4899" // Rosa (Energía)
+                  textColor1="gray"
+                  dataPointsColor1="#8b5cf6"
+                  dataPointsColor2="#ec4899"
+                  dataPointsRadius={4}
+                  thickness={3}
+                  startFillColor1="#8b5cf6"
+                  startFillColor2="#ec4899"
+                  startOpacity={0.2}
+                  endOpacity={0.0}
+                  areaChart
+                  curved
+                  hideRules
+                  showVerticalLines
+                  verticalLinesColor="rgba(0,0,0,0.05)"
+                  yAxisColor="transparent"
+                  xAxisColor="#e5e7eb"
+                  yAxisTextStyle={{ color: '#9ca3af', fontSize: 10 }}
+                  xAxisLabelTextStyle={{ color: '#6b7280', fontSize: 10 }}
+                  maxValue={10}
+                  noOfSections={5}
+                />
+              </View>
 
-      {/* ---------------- PIE CHART ---------------- */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Distribución de emociones</Text>
-        <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-          <PieChart
-            data={emotionPieData}
-            donut
-            showText
-            textColor="white"
-            radius={120}
-            innerRadius={60}
-            textSize={12}
-            innerCircleColor={"#fff"}
-            centerLabelComponent={() => {
-              return <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#333' }}>Total</Text>;
-            }}
-          />
-        </View>
-        
-        {/* Leyenda manual del Pie */}
-        <View style={styles.pieLegendContainer}>
-          {pieLegend.map((item, index) => (
-            <View key={index} style={styles.legendItem}>
-              <View style={[styles.dot, { backgroundColor: item.color }]} />
-              <Text style={styles.legendText}>{item.label}</Text>
+              {/* Leyenda Manual */}
+              <View style={styles.legendRow}>
+                <View style={styles.legendBadge}>
+                  <View style={[styles.dot, { backgroundColor: "#8b5cf6" }]} />
+                  <Text style={styles.legendText}>Ánimo</Text>
+                </View>
+                <View style={styles.legendBadge}>
+                  <View style={[styles.dot, { backgroundColor: "#ec4899" }]} />
+                  <Text style={styles.legendText}>Energía</Text>
+                </View>
+              </View>
             </View>
-          ))}
-        </View>
-      </View>
+          )}
 
-      {/* ---------------- BAR CHART ---------------- */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Impacto de actividades</Text>
-        <View style={{ paddingVertical: 10 }}>
-          <BarChart
-            data={activityBarData}
-            barWidth={35}
-            noOfSections={4}
-            barBorderRadius={4}
-            frontColor="lightgray"
-            yAxisThickness={0}
-            xAxisThickness={0}
-            isAnimated
-            animationDuration={400}
-            width={screenWidth - 80}
-          />
-        </View>
-      </View>
+          {/* ---------------- 2. GRÁFICO CIRCULAR (Emociones) ---------------- */}
+          {hasPieData && (
+            <View style={styles.section}>
+              <View style={{flexDirection:'row', alignItems:'center', marginBottom: 15}}>
+                 <PieIcon size={18} color="#4b5563" style={{marginRight: 8}}/>
+                 <Text style={styles.sectionTitle}>Distribución Emocional</Text>
+              </View>
 
-      {/* Insights */}
-      <View style={styles.insightCard}>
-        {/* @ts-ignore */}
-        <Sparkles size={20} color="white" />
-        <View style={{ marginLeft: 10, flex: 1 }}>
-          <Text style={styles.insightTitle}>Insights personalizados</Text>
-          <Text style={styles.insightText}>Tu estado de ánimo mejora un 23% los días que haces ejercicio.</Text>
-        </View>
-      </View>
+              <View style={{ alignItems: 'center' }}>
+                <PieChart
+                  data={stats!.pie_chart}
+                  donut
+                  showText
+                  textColor="white"
+                  fontWeight="bold"
+                  radius={110}
+                  innerRadius={65}
+                  textSize={14}
+                  innerCircleColor={"#fff"}
+                  centerLabelComponent={() => (
+                     <View style={{justifyContent: 'center', alignItems: 'center'}}>
+                        <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1f2937' }}>{stats?.total_dias}</Text>
+                        <Text style={{ fontSize: 12, color: '#9ca3af' }}>Registros</Text>
+                     </View>
+                  )}
+                />
+              </View>
+
+              <View style={styles.pieLegendContainer}>
+                {stats!.pie_chart.map((item, index) => (
+                  <View key={index} style={styles.legendItem}>
+                    <View style={[styles.dot, { backgroundColor: item.color }]} />
+                    <Text style={styles.legendText}>{item.label} ({item.count})</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* ---------------- 3. GRÁFICO DE BARRAS (Actividades) ---------------- */}
+          {hasBarData && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Top Actividades</Text>
+              <Text style={styles.sectionSubtitle}>Lo que más has hecho últimamente</Text>
+              
+              <View style={{ paddingVertical: 20 }}>
+                <BarChart
+                  data={stats!.bar_data}
+                  barWidth={32}
+                  spacing={24}
+                  barBorderRadius={6}
+                  frontColor="#8b5cf6" // Color fallback
+                  yAxisThickness={0}
+                  xAxisThickness={1}
+                  xAxisColor="#e5e7eb"
+                  isAnimated
+                  width={screenWidth - 80}
+                  noOfSections={4}
+                  yAxisTextStyle={{color: '#9ca3af'}}
+                  xAxisLabelTextStyle={{color: '#4b5563', fontSize: 11}}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* ---------------- INSIGHT / CONSEJO ---------------- */}
+          <View style={styles.insightCard}>
+            <Sparkles size={24} color="#fbbf24" style={{marginRight: 12}} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.insightTitle}>Resumen</Text>
+              <Text style={styles.insightText}>
+                {(stats?.promedio_general || 0) >= 7 
+                  ? "¡Tienes una racha muy positiva! Identifica qué actividades (gráfica de barras) te están ayudando a mantenerte así." 
+                  : "Estás pasando por días retadores. Revisa qué emociones predominan y trata de realizar actividades que suban tu energía."}
+              </Text>
+            </View>
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: "#f8fafc" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: "700", color: "#111827" },
-  subtitle: { color: "#6b7280" },
+  container: { flex: 1, backgroundColor: "#f8fafc", padding: 16 },
+  centerContent: { justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, color: '#64748b', fontSize: 14 },
   
-  headerButtons: { flexDirection: "row" },
-  buttonSmall: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 8, backgroundColor: 'white' },
-  btnText: { marginLeft: 6, color: '#374151', fontSize: 12 },
-  
-  cardRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 12 },
-  card: { flex: 1, backgroundColor: "#fff", padding: 16, borderRadius: 16, marginRight: 8, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2} },
-  cardLabel: { color: "#6b7280", fontSize: 12, marginBottom: 4 },
-  cardValue: { fontSize: 20, fontWeight: "700", color: '#1f2937' },
-  
-  section: { marginTop: 18, backgroundColor: "#fff", padding: 16, borderRadius: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2} },
-  sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8, color: '#1f2937' },
-  
-  // Leyenda
-  legendRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 10, alignItems: 'center' },
-  pieLegendContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 20, gap: 12 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
-  legendText: { color: '#4b5563', fontSize: 12 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20, marginTop: 10 },
+  title: { fontSize: 24, fontWeight: "800", color: "#1e293b" },
+  subtitle: { color: "#64748b", fontSize: 14 },
+  headerIcon: { backgroundColor: '#ede9fe', padding: 8, borderRadius: 12 },
 
-  insightCard: { flexDirection: "row", backgroundColor: "#3b82f6", padding: 16, borderRadius: 16, marginTop: 24, alignItems: 'center', shadowColor: '#3b82f6', shadowOpacity: 0.3, shadowOffset: {width:0, height:4}, elevation: 4 },
-  insightTitle: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  insightText: { color: "#e0f2fe", fontSize: 13, marginTop: 2 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
+  card: { flex: 1, backgroundColor: "#fff", padding: 16, borderRadius: 20, marginRight: 10, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: {width:0, height:4}, elevation: 2 },
+  cardLabel: { color: "#64748b", fontSize: 12, fontWeight: '600', textTransform: 'uppercase', marginBottom: 6 },
+  cardValue: { fontSize: 24, fontWeight: "800", color: '#0f172a' },
+
+  section: { marginBottom: 20, backgroundColor: "#fff", padding: 20, borderRadius: 24, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: {width:0, height:4}, elevation: 2 },
+  sectionTitle: { fontSize: 17, fontWeight: "700", color: '#1e293b' },
+  sectionSubtitle: { fontSize: 12, color: '#94a3b8', marginBottom: 5 },
+
+  legendRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 15, gap: 16 },
+  legendBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  
+  pieLegendContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 20, gap: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 8, marginBottom: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  legendText: { color: '#475569', fontSize: 12, fontWeight: '500' },
+
+  insightCard: { flexDirection: "row", backgroundColor: "#1e293b", padding: 20, borderRadius: 20, alignItems: 'center', shadowColor: '#1e293b', shadowOpacity: 0.3, shadowOffset: {width:0, height:8}, elevation: 8, marginBottom: 20 },
+  insightTitle: { color: "#fff", fontWeight: "700", fontSize: 15, marginBottom: 4 },
+  insightText: { color: "#cbd5e1", fontSize: 13, lineHeight: 18 },
+
+  emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#334155', marginTop: 16 },
+  emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 8, lineHeight: 20 },
 });

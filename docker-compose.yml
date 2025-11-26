@@ -1,0 +1,18 @@
+
+
+services:
+  backend:
+    build: ./backend
+    container_name: salud_mental_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app  # Sincroniza tu código en vivo
+    environment:
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - DEBUG=1  # Cambiar a 0 en producción real
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+# Si en el futuro agregas PostgreSQL, iría aquí.

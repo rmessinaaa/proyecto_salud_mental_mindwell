@@ -1,5 +1,5 @@
 import LoginView from "../components/LoginView";
 
-export default function RegisterScreen() {
+export default function LoginScreen() {
   return <LoginView />;
 }

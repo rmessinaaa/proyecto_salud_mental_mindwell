@@ -1,270 +1,382 @@
-// =============================
-// File: DiaryView.tsx (CORREGIDO)
-// =============================
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Switch,
   StyleSheet,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  Platform,
+  LogBox
 } from "react-native";
+import { useRouter } from "expo-router";
+import * as Notifications from 'expo-notifications';
+
+// Importamos tu API
+import { api } from "../services/api";
+
+// UI Components
 import { Card } from "../components/ui/card";
-import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 
 import {
-  Heart,
-  CloudRain,
-  Sun,
-  Calendar,
-  Clock,
-  Camera,
-  Plus,
+  User, Bell, LogOut, Globe, Pencil, ChevronLeft, X, Clock, ChevronDown
 } from "lucide-react-native";
 
-import { ViewType } from "../types/navigation";
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications',
+  'functionality is not fully supported in Expo Go',
+]);
 
-interface DiaryViewProps {
-  onNavigate: (view: ViewType) => void;
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true,
+  }),
+});
+
+interface SettingsViewProps {
+  onLogout?: () => void;
 }
 
-const emotions = [
-  { icon: "😄", label: "Feliz", color: "#facc15" },
-  { icon: "😊", label: "Contento", color: "#4ade80" },
-  { icon: "😐", label: "Neutral", color: "#9ca3af" },
-  { icon: "😕", label: "Triste", color: "#60a5fa" },
-  { icon: "😢", label: "Muy triste", color: "#2563eb" },
-  { icon: "😠", label: "Enojado", color: "#ef4444" },
-  { icon: "😰", label: "Ansioso", color: "#f97316" },
-  { icon: "😌", label: "Tranquilo", color: "#2dd4bf" },
-];
+export default function SettingsView({ onLogout }: SettingsViewProps) {
+  const router = useRouter();
 
-const previousEntries = [
-  {
-    date: "10 Nov 2025",
-    time: "18:30",
-    emotion: "😊",
-    mood: "Contento",
-    note: "Tuve un día productivo. Completé todas mis tareas y salí a caminar por la tarde.",
-    activities: ["Ejercicio", "Trabajo"],
-  },
-  {
-    date: "9 Nov 2025",
-    time: "20:15",
-    emotion: "😐",
-    mood: "Neutral",
-    note: "Día normal. Un poco cansado pero en general bien.",
-    activities: ["Descanso"],
-  },
-  {
-    date: "8 Nov 2025",
-    time: "19:00",
-    emotion: "😄",
-    mood: "Feliz",
-    note: "¡Excelente día! Salí con amigos y me divertí mucho. Me siento lleno de energía.",
-    activities: ["Social", "Ocio"],
-  },
-];
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-export function DiaryView({ onNavigate }: DiaryViewProps) {
-  const [selectedEmotion, setSelectedEmotion] = useState<number | null>(null);
+  // Perfil
+  const [biografia, setBiografia] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [nivel, setNivel] = useState(1);
+  const [esPremium, setEsPremium] = useState(false);
+
+  // Configuración
+  const [notifications, setNotifications] = useState({ daily: false, missions: true, events: true, email: false });
+  const [dailyReminderId, setDailyReminderId] = useState<number | null>(null); 
+  const [modalVisible, setModalVisible] = useState(false); 
+  const [dailyTime, setDailyTime] = useState("20:00"); 
+
+  useEffect(() => {
+    inicializar();
+  }, []);
+
+  const inicializar = async () => {
+    try {
+      await pedirPermisosNotificaciones();
+      const perfil = await api.getPerfil();
+      if (perfil) {
+        setUsername(perfil.username);
+        setEmail(perfil.email);
+        setBiografia(perfil.biografia || "");
+        setNivel(perfil.nivel_actual);
+        setEsPremium(perfil.es_premium);
+        setNotifications(prev => ({ ...prev, daily: perfil.notificaciones_diarias }));
+      }
+      const recordatorios = await api.getRecordatorios();
+      const existingDaily = recordatorios.find(r => r.titulo === "Registro Diario");
+      if (existingDaily && existingDaily.id) {
+        setDailyReminderId(existingDaily.id);
+        const date = new Date(existingDaily.fecha_hora);
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        setDailyTime(`${hours}:${minutes}`);
+      }
+    } catch (error) {
+      console.log("Error inicializando settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  async function pedirPermisosNotificaciones() {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted' && Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default', importance: Notifications.AndroidImportance.MAX, vibrationPattern: [0, 250, 250, 250], lightColor: '#FF231F7C',
+        });
+      }
+    } catch (e) { console.log("Error silencioso permisos:", e); }
+  }
+
+  const handleDailySwitch = async (value: boolean) => {
+    if (value) {
+      setModalVisible(true);
+      setNotifications(prev => ({ ...prev, daily: true }));
+    } else {
+      Alert.alert("Desactivar", "¿Dejar de recibir el aviso diario?", [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Desactivar", style: "destructive", onPress: async () => {
+              setNotifications(prev => ({ ...prev, daily: false }));
+              if (dailyReminderId) { await api.eliminarRecordatorio(dailyReminderId); setDailyReminderId(null); }
+              await Notifications.cancelAllScheduledNotificationsAsync();
+              await api.updatePerfil({ notificaciones_diarias: false });
+            }}
+        ]);
+    }
+  };
+
+  const saveDailyReminder = async () => {
+    setModalVisible(false); setSaving(true);
+    try {
+        const now = new Date();
+        const [hours, minutes] = dailyTime.split(':');
+        const fechaEvento = new Date();
+        fechaEvento.setHours(parseInt(hours), parseInt(minutes), 0);
+        if (fechaEvento <= now) fechaEvento.setDate(fechaEvento.getDate() + 1);
+        if (dailyReminderId) await api.eliminarRecordatorio(dailyReminderId);
+
+        const nuevo = await api.crearRecordatorio({ titulo: "Registro Diario", fecha_hora: fechaEvento.toISOString(), tipo: 'diario' });
+        if (nuevo && nuevo.id) setDailyReminderId(nuevo.id);
+
+        await Notifications.cancelAllScheduledNotificationsAsync();
+        await Notifications.scheduleNotificationAsync({
+            content: { title: "📝 Hora de tu Registro Diario", body: "¿Cómo te sientes hoy?", sound: true, priority: Notifications.AndroidNotificationPriority.HIGH },
+            trigger: { hour: parseInt(hours), minute: parseInt(minutes), type: Notifications.SchedulableTriggerInputTypes.DAILY },
+        });
+        await api.updatePerfil({ notificaciones_diarias: true });
+        Alert.alert("¡Listo!", `Te recordaremos a las ${dailyTime}`);
+    } catch (error) { Alert.alert("Error", "No se pudo configurar."); setNotifications(prev => ({ ...prev, daily: false })); } finally { setSaving(false); }
+  };
+
+  // ✅ LÓGICA CORREGIDA Y DEPURADA DE GUARDAR CAMBIOS
+  const handleGeneralSave = async () => {
+    console.log("1. Botón presionado. Guardando biografía:", biografia);
+    
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      console.log("2. Enviando petición a API...");
+      const response = await api.updatePerfil({
+        biografia: biografia,
+      });
+      
+      console.log("3. Respuesta exitosa:", response);
+      Alert.alert("¡Guardado!", "Tu perfil se ha actualizado correctamente.");
+      
+    } catch (error: any) {
+      console.log("4. Error en la petición:", error);
+      // Mostramos el error real en la alerta para saber qué pasa
+      Alert.alert("Error al guardar", error.message || "Error de conexión");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert("Cerrar Sesión", "¿Salir?", [{ text: "Cancelar", style: "cancel" }, { text: "Salir", style: "destructive", onPress: async () => { await api.logout(); router.replace("/login"); } }]);
+  };
+
+  if (loading) return (<View style={{flex:1, justifyContent:'center', alignItems:'center'}}><ActivityIndicator size="large" color="#a855f7"/></View>);
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.inner}>
+        
         {/* HEADER */}
-        <View>
-          <Text style={styles.title}>Diario Emocional</Text>
-          <Text style={styles.subtitle}>
-            Registra cómo te sientes y reflexiona sobre tu día
-          </Text>
+        <View style={styles.headerContainer}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <ChevronLeft size={24} color="#64748b" />
+                <Text style={styles.backText}>Volver</Text>
+            </TouchableOpacity>
+            <View style={{ marginTop: 12 }}>
+                <Text style={styles.title}>Configuración</Text>
+                <Text style={styles.subtitle}>Personaliza tu experiencia</Text>
+            </View>
         </View>
 
-        {/* NUEVA ENTRADA */}
+        {/* PERFIL */}
         <Card>
           <View style={styles.cardContent}>
-            <Text style={styles.sectionTitle}>Nueva entrada</Text>
+            <View style={styles.cardHeader}>
+              <User size={24} color="#a855f7" />
+              <Text style={styles.cardTitle}>Perfil</Text>
+            </View>
 
-            <View style={styles.space}>
-              {/* EMOCIONES */}
-              <View>
-                <Text style={styles.label}>¿Cómo te sientes ahora?</Text>
-
-                <View style={styles.emotionGrid}>
-                  {emotions.map((emotion, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      onPress={() => setSelectedEmotion(idx)}
-                      style={[
-                        styles.emotionButton,
-                        { backgroundColor: emotion.color },
-                        selectedEmotion === idx && styles.emotionSelected,
-                      ]}
-                    >
-                      <Text style={styles.emotionIcon}>{emotion.icon}</Text>
-                      <Text style={styles.emotionText}>{emotion.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+            <View style={styles.profileSection}>
+              <View style={styles.avatarContainer}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{username ? username.charAt(0).toUpperCase() : "U"}</Text>
                 </View>
+                <TouchableOpacity style={styles.editBadge}><Pencil size={14} color="#fff" /></TouchableOpacity>
               </View>
 
-              {/* INTENSIDAD */}
-              <View>
-                <Text style={styles.label}>Intensidad de la emoción</Text>
-
-                <View style={styles.intensityRow}>
-                  <Text style={styles.intensityText}>Leve</Text>
-                  <View style={styles.sliderPlaceholder} />
-                  <Text style={styles.intensityText}>Intensa</Text>
-                  <Badge>5/10</Badge>
+              <View style={styles.formContainer}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Usuario</Text>
+                  <TextInput style={[styles.input, { backgroundColor: '#f1f5f9', color: '#64748b' }]} value={username} editable={false} />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Correo Electrónico</Text>
+                  <TextInput style={[styles.input, { backgroundColor: '#f1f5f9', color: '#64748b' }]} value={email} editable={false} />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Biografía</Text>
+                  <TextInput style={styles.input} placeholder="Sobre ti..." value={biografia} onChangeText={setBiografia} multiline />
                 </View>
               </View>
+            </View>
 
-              {/* NOTAS */}
-              <View>
-                <Text style={styles.label}>¿Qué pasó hoy?</Text>
-                <TextInput
-                  placeholder="Describe tu día..."
-                  multiline
-                  numberOfLines={6}
-                  style={styles.textarea}
-                />
-              </View>
+            <View style={styles.separator} />
+            <View style={styles.rowBetween}>
+              <View><Text style={styles.label}>Nivel {nivel}</Text></View>
+              
+              {/* ✅ BOTÓN CORREGIDO: TouchableOpacity directo */}
+              <TouchableOpacity 
+                onPress={handleGeneralSave} 
+                disabled={saving}
+                style={styles.btnPrimary}
+              >
+                {saving ? (
+                    <ActivityIndicator color="white" size="small" />
+                ) : (
+                    <Text style={styles.btnPrimaryText}>Guardar Cambios</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Card>
 
-              {/* ACTIVIDADES */}
-              <View>
-                <Text style={styles.label}>Actividades del día</Text>
-                <View style={styles.activitiesRow}>
-                  {[
-                    "Trabajo",
-                    "Ejercicio",
-                    "Social",
-                    "Ocio",
-                    "Descanso",
-                    "Estudio",
-                    "Familia",
-                    "Hobby",
-                  ].map((activity, idx) => (
-                    <Button key={idx}>
-                      <Plus size={16} />
-                      {activity}
-                    </Button>
-                  ))}
+        <View style={styles.space} />
+
+        {/* NOTIFICACIONES */}
+        <Card>
+          <View style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+              <Bell size={24} color="#3b82f6" />
+              <Text style={styles.cardTitle}>Notificaciones</Text>
+            </View>
+            <View style={styles.settingRows}>
+              <View style={styles.rowBetween}>
+                <View style={styles.textContainer}>
+                  <Text style={styles.settingTitle}>Registro diario</Text>
+                  <Text style={styles.settingDesc}>{notifications.daily ? `Activo a las ${dailyTime}` : "Recordatorio de estado de ánimo"}</Text>
                 </View>
+                <Switch value={notifications.daily} onValueChange={handleDailySwitch} trackColor={{ false: "#e2e8f0", true: "#a855f7" }} />
               </View>
-
-              {/* FACTORES */}
-              <View style={styles.factorsGrid}>
-                <View>
-                  <Text style={styles.label}>Clima emocional</Text>
-                  <View style={styles.row}>
-                    <Button>
-                      <Sun size={18} />
-                      Soleado
-                    </Button>
-                    <Button>
-                      <CloudRain size={18} />
-                      Nublado
-                    </Button>
-                  </View>
+              <View style={styles.rowBetween}>
+                <View style={styles.textContainer}>
+                  <Text style={styles.settingTitle}>Misiones diarias</Text>
+                  <Text style={styles.settingDesc}>Nuevas misiones y desafíos</Text>
                 </View>
-
-                <View>
-                  <Text style={styles.label}>Adjuntar</Text>
-                  <Button>
-                    <Camera size={18} />
-                    Agregar foto
-                  </Button>
-                </View>
-              </View>
-
-              {/* BOTONES */}
-              <View style={styles.row}>
-                <Button>
-                  <Heart size={18} />
-                  Guardar
-                </Button>
-                <Button onPress={() => onNavigate("dashboard")}>Cancelar</Button>
+                <Switch value={notifications.missions} onValueChange={(v) => setNotifications({ ...notifications, missions: v })} trackColor={{ false: "#e2e8f0", true: "#a855f7" }} />
               </View>
             </View>
           </View>
         </Card>
 
-        {/* ENTRADAS ANTERIORES */}
-        <View>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Entradas recientes</Text>
-            <Button onPress={() => onNavigate("charts")}>Ver estadísticas</Button>
+        <View style={styles.space} />
+
+        {/* IDIOMA Y REGIÓN */}
+        <Card>
+          <View style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+              <Globe size={24} color="#14b8a6" />
+              <Text style={styles.cardTitle}>Idioma y región</Text>
+            </View>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Idioma</Text>
+                <TouchableOpacity style={styles.fakeSelect}>
+                  <Text style={styles.inputText}>Español</Text>
+                  <ChevronDown size={16} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
+        </Card>
 
-          <View style={styles.space}>
-            {previousEntries.map((entry, idx) => (
-              <Card key={idx}>
-                <View style={styles.cardEntry}>
-                  <View style={styles.entryRow}>
-                    <Text style={styles.entryEmotion}>{entry.emotion}</Text>
+        <View style={styles.space} />
 
-                    <View style={styles.entryContent}>
-                      <View style={styles.entryHeader}>
-                        <Text style={styles.entryMood}>{entry.mood}</Text>
-                        <Calendar size={16} color="#64748b" />
-                        <Text style={styles.entryMeta}>{entry.date}</Text>
-                        <Clock size={16} color="#64748b" />
-                        <Text style={styles.entryMeta}>{entry.time}</Text>
-                      </View>
+        {/* LOGOUT */}
+        <Card>
+          <TouchableOpacity style={[styles.cardContent, styles.logoutCard]} onPress={handleLogout}>
+            <View>
+              <Text style={styles.settingTitle}>Cerrar sesión</Text>
+              <Text style={styles.settingDesc}>Salir de este dispositivo</Text>
+            </View>
+            <View style={styles.logoutButton}>
+              <LogOut size={16} color="#dc2626" style={{ marginRight: 6 }} />
+              <Text style={styles.logoutText}>Salir</Text>
+            </View>
+          </TouchableOpacity>
+        </Card>
 
-                      <Text style={styles.entryNote}>{entry.note}</Text>
-
-                      <View style={styles.activitiesRow}>
-                        {entry.activities.map((a, i) => (
-                          <Badge key={i}>{a}</Badge>
-                        ))}
-                      </View>
-                    </View>
-
-                    <Button>Ver más</Button>
-                  </View>
-                </View>
-              </Card>
-            ))}
-          </View>
-        </View>
+        <View style={{ height: 40 }} />
       </View>
+
+      {/* MODAL */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Configurar Hora</Text>
+                    <TouchableOpacity onPress={() => { setModalVisible(false); setNotifications(prev=>({...prev, daily: false}))}}><X size={24} color="#64748b" /></TouchableOpacity>
+                </View>
+                <View style={{alignItems: 'center', marginVertical: 20}}>
+                    <Clock size={48} color="#a855f7" style={{marginBottom: 10}}/>
+                    <Text style={{textAlign: 'center', color: '#64748b', marginBottom: 15}}>¿A qué hora quieres recibir tu recordatorio diario?</Text>
+                    <View style={{width: '100%'}}>
+                        <Text style={styles.label}>Hora (HH:MM)</Text>
+                        <TextInput style={styles.input} placeholder="20:00" value={dailyTime} onChangeText={setDailyTime} keyboardType="numbers-and-punctuation" textAlign="center" maxLength={5} />
+                    </View>
+                </View>
+                <TouchableOpacity style={styles.saveButton} onPress={saveDailyReminder} disabled={saving}>
+                    {saving ? <ActivityIndicator color="white"/> : <Text style={styles.saveButtonText}>Guardar Recordatorio</Text>}
+                </TouchableOpacity>
+            </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#f8fafc" },
-  inner: { flex: 1 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#1e293b" },
-  subtitle: { color: "#475569" },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  inner: { flex: 1, padding: 16 },
+  space: { height: 16 },
+  headerContainer: { marginBottom: 24 },
+  backButton: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  backText: { color: "#64748b", fontSize: 16, marginLeft: 4 },
+  title: { fontSize: 28, fontWeight: "bold", color: "#1e293b", marginBottom: 4 },
+  subtitle: { color: "#475569", fontSize: 16 },
   cardContent: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: "600", color: "#1e293b", marginBottom: 12 },
-  label: { color: "#334155", marginBottom: 8 },
-  space: { marginTop: 16 },
-  emotionGrid: { flexDirection: "row", flexWrap: "wrap" },
-  emotionButton: { borderRadius: 12, padding: 12, alignItems: "center", width: 70, margin: 6 },
-  emotionSelected: { borderWidth: 2, borderColor: "#9333ea" },
-  emotionIcon: { fontSize: 22 },
-  emotionText: { fontSize: 12, color: "#1e293b" },
-  intensityRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  intensityText: { color: "#475569" },
-  sliderPlaceholder: { flex: 1, height: 6, backgroundColor: "#e5e7eb", borderRadius: 4 },
-  textarea: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 12, minHeight: 120, backgroundColor: "#fff" },
-  activitiesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  factorsGrid: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardEntry: { padding: 16 },
-  entryRow: { flexDirection: "row", gap: 12 },
-  entryEmotion: { fontSize: 32 },
-  entryContent: { flex: 1 },
-  entryHeader: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  entryMood: { fontSize: 16, fontWeight: "600" },
-  entryMeta: { color: "#64748b" },
-  entryNote: { marginTop: 6, color: "#475569" },
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+  cardTitle: { fontSize: 18, fontWeight: "600", color: "#1e293b" },
+  label: { color: "#334155", marginBottom: 6, fontSize: 14, fontWeight: "600" },
+  input: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 12, backgroundColor: "#fff", color: "#1e293b", fontSize: 15 },
+  profileSection: { flexDirection: "row", gap: 16, marginBottom: 16 },
+  avatarContainer: { alignItems: 'center' },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#a855f7", alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
+  editBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', padding: 6, borderRadius: 20, borderWidth: 1, borderColor: '#e2e8f0' },
+  formContainer: { flex: 1, gap: 12 },
+  inputGroup: { marginBottom: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  separator: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 16 },
+  settingRows: { gap: 16 },
+  textContainer: { flex: 1, paddingRight: 8 },
+  settingTitle: { fontSize: 16, color: "#1e293b", fontWeight: "500", marginBottom: 2 },
+  settingDesc: { fontSize: 13, color: "#64748b" },
+  logoutCard: { borderColor: '#fee2e2', borderWidth: 1, borderRadius: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff' },
+  logoutButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fef2f2', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#fecaca' },
+  logoutText: { color: '#dc2626', fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: 'white', borderRadius: 16, padding: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1e293b' },
+  saveButton: { backgroundColor: '#a855f7', padding: 14, borderRadius: 10, alignItems: 'center', width: '100%' },
+  saveButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  fakeSelect: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 12, backgroundColor: "#fff", flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  inputText: { color: "#1e293b" },
+  // ✅ NUEVO ESTILO PARA EL BOTÓN NATIVO
+  btnPrimary: { backgroundColor: '#a855f7', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  btnPrimaryText: { color: 'white', fontWeight: '600', fontSize: 14 },
 });
-

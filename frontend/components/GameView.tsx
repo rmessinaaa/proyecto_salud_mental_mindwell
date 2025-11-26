@@ -1,383 +1,226 @@
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
-import { router } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Alert } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Star, Flame, Gift, Trophy } from "lucide-react-native";
+import { api, UserProfile, LogrosResponse } from "../services/api"; // ✅ Importar API y tipos
 
-import {
-  Star,
-  Flame,
-  Gift,
-  Trophy,
-  CheckCircle2,
-  Lock
-} from "lucide-react-native";
-
-// ------------------------- DATA -----------------------------
-
-const dailyMissions = [
-  {
-    id: 1,
-    title: "Registra tu estado de ánimo",
-    description: "Completa una entrada en tu diario emocional",
-    xp: 50,
-    completed: true,
-    icon: "😊",
-  },
-  {
-    id: 2,
-    title: "Meditación matutina",
-    description: "Completa 5 minutos de meditación guiada",
-    xp: 75,
-    completed: false,
-    icon: "🧘",
-  },
-  {
-    id: 3,
-    title: "Ejercicio físico",
-    description: "Realiza al menos 20 minutos de actividad física",
-    xp: 100,
-    completed: false,
-    icon: "🏃",
-  },
-  {
-    id: 4,
-    title: "Conexión social",
-    description: "Habla con un amigo o ser querido",
-    xp: 60,
-    completed: false,
-    icon: "💬",
-  },
+// Misiones Diarias (Mocks visuales, pero la acción de completar sí es real)
+const dailyMissionsMock = [
+  { id: 1, title: "Registra tu estado de ánimo", description: "Completa una entrada hoy", xp: 50, icon: "😊" },
+  { id: 2, title: "Meditación express", description: "Usa un recurso de la biblioteca", xp: 30, icon: "🧘" },
+  { id: 3, title: "Racha perfecta", description: "Entra a la app 3 días seguidos", xp: 100, icon: "🔥" },
 ];
-
-const weeklyChallenge = [
-  {
-    title: "Maestro de la consistencia",
-    description: "Registra tu estado de ánimo 7 días seguidos",
-    progress: 4,
-    total: 7,
-    xp: 500,
-    badge: "🔥",
-  },
-  {
-    title: "Explorador del bienestar",
-    description: "Prueba 5 ejercicios diferentes de la biblioteca",
-    progress: 3,
-    total: 5,
-    xp: 350,
-    badge: "🗺️",
-  },
-  {
-    title: "Gurú de la meditación",
-    description: "Completa 60 minutos de meditación esta semana",
-    progress: 35,
-    total: 60,
-    xp: 600,
-    badge: "🧘",
-  },
-];
-
-const powerUps = [
-  { name: "Doble XP", duration: "1 día", cost: 100, icon: "⚡" },
-  { name: "Congelador de racha", duration: "1 uso", cost: 150, icon: "❄️" },
-  { name: "Multiplicador x3", duration: "2 horas", cost: 200, icon: "🚀" },
-  { name: "Revelador de secretos", duration: "Permanente", cost: 250, icon: "🔮" },
-];
-
-// ------------------------- COMPONENTE -----------------------------
 
 export default function GameView() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [logrosData, setLogrosData] = useState<LogrosResponse | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = async () => {
+    // Cargar perfil y logros en paralelo para que sea rápido
+    const [userData, gamificationData] = await Promise.all([
+      api.getPerfil(),
+      api.getLogros()
+    ]);
+    setProfile(userData);
+    setLogrosData(gamificationData);
+    setRefreshing(false);
+  };
+
+  // Cargar datos cada vez que entras a la pantalla
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  // ✅ Función para completar misiones conectada al Backend
+  const handleCompleteMission = async (mision: any) => {
+    try {
+        const resultado = await api.registrarAccion('mision_diaria', mision.xp);
+        
+        if (resultado) {
+             let mensaje = `Ganaste +${mision.xp} XP.`;
+             
+             if (resultado.logros_nuevos && resultado.logros_nuevos.length > 0) {
+                 mensaje += `\n\n🏆 ¡Nuevo Logro: ${resultado.logros_nuevos[0]}!`;
+             }
+
+             Alert.alert("¡Misión Cumplida!", mensaje, [
+                { text: "Ok", onPress: () => loadData() } // Recargamos para ver la XP subir
+             ]);
+        }
+    } catch (e) {
+        console.error(e);
+        Alert.alert("Error", "No se pudo conectar con el servidor.");
+    }
+  };
+
+  // Calcular XP basado en puntos de logros (Si tu modelo de perfil tiene experiencia_actual, úsalo aquí)
+  // Por ahora, usamos profile.experiencia_actual que agregamos recientemente al backend
+  const currentXP = profile?.experiencia_actual || 0;
+  const currentLevel = profile?.nivel_actual || 1;
+  const nextLevelXP = currentLevel * 100; // Formula simple: Nivel * 100
+  const progressPercent = Math.min((currentXP / nextLevelXP) * 100, 100);
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+        style={styles.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
+    >
       
       {/* Header */}
       <View style={styles.section}>
-        <Text style={styles.title}>Juego de Hábitos</Text>
+        <Text style={styles.title}>Tu Progreso</Text>
         <Text style={styles.subtitle}>
-          Construye hábitos saludables mientras te diviertes
+          ¡Hola {profile?.username || "Jugador"}! Estás construyendo grandes hábitos.
         </Text>
       </View>
 
-      {/* Stats */}
+      {/* Stats Principales (Conectadas a Backend) */}
       <View style={styles.statsGrid}>
+        
         {/* Nivel */}
         <View style={[styles.card, styles.purpleCard]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardText}>Nivel</Text>
+            <Text style={styles.cardText}>Nivel Actual</Text>
             <Star size={20} color="white" />
           </View>
-
-          <Text style={styles.cardValue}>Nivel 8</Text>
-
+          <Text style={styles.cardValue}>{currentLevel}</Text>
+          
+          {/* Barra de Progreso */}
           <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: "55%" }]} />
+            <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
           </View>
-
-          <Text style={styles.cardSmall}>2,450 / 3,000 XP</Text>
+          <Text style={styles.cardSmall}>{currentXP} / {nextLevelXP} XP</Text>
         </View>
 
-        {/* Racha */}
-        <View style={[styles.card, styles.redCard]}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardText}>Racha actual</Text>
-            <Flame size={20} color="white" />
-          </View>
-
-          <Text style={styles.cardValue}>7 días 🔥</Text>
-          <Text style={styles.cardSmall}>Tu mejor racha: 15 días</Text>
-        </View>
-
-        {/* Monedas */}
+        {/* Logros Totales */}
         <View style={[styles.card, styles.yellowCard]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardText}>Monedas</Text>
-            <Gift size={20} color="white" />
-          </View>
-
-          <Text style={styles.cardValue}>850 monedas</Text>
-
-          <TouchableOpacity style={styles.whiteButton}>
-            <Text style={styles.whiteButtonText}>Ganar más</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Rango */}
-        <View style={[styles.card, styles.blueCard]}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardText}>Rango</Text>
+            <Text style={styles.cardText}>Logros</Text>
             <Trophy size={20} color="white" />
           </View>
-
-          <Text style={styles.cardValue}>Top 15%</Text>
-          <Text style={styles.cardSmall}>Entre tus amigos</Text>
+          <Text style={styles.cardValue}>
+             {logrosData?.desbloqueados.length || 0}
+          </Text>
+          <Text style={styles.cardSmall}>Desbloqueados</Text>
         </View>
-      </View>
 
-      {/* Misiones diarias */}
-      <View style={styles.block}>
-        <Text style={styles.blockTitle}>Misiones diarias</Text>
-        <Text style={styles.blockSubtitle}>Reinician en 8 horas</Text>
-
-        {dailyMissions.map((m) => (
-          <View
-            key={m.id}
-            style={[
-              styles.missionCard,
-              m.completed && styles.missionDone,
-            ]}
-          >
-            <Text style={styles.missionIcon}>{m.icon}</Text>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.missionTitle}>
-                {m.title}{" "}
-                {m.completed && (
-                  <CheckCircle2 size={16} color="green" />
-                )}
-              </Text>
-
-              <Text style={styles.missionDesc}>{m.description}</Text>
-
-              <Text style={styles.badge}>+{m.xp} XP</Text>
-            </View>
-
-            {!m.completed && (
-              <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>Completar</Text>
-              </TouchableOpacity>
-            )}
+        {/* Racha (Simulada hasta tener backend de rachas) */}
+        <View style={[styles.card, styles.redCard]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardText}>Racha</Text>
+            <Flame size={20} color="white" />
           </View>
-        ))}
-      </View>
+          <Text style={styles.cardValue}>Activa 🔥</Text>
+          <Text style={styles.cardSmall}>¡Sigue así!</Text>
+        </View>
 
-      {/* Desafíos semanales */}
-      <View style={styles.block}>
-        <Text style={styles.blockTitle}>Desafíos semanales</Text>
-
-        {weeklyChallenge.map((c, i) => (
-          <View key={i} style={styles.challengeCard}>
-            <Text style={styles.challengeBadge}>{c.badge}</Text>
-
-            <Text style={styles.challengeTitle}>{c.title}</Text>
-            <Text style={styles.challengeDesc}>{c.description}</Text>
-
-            <View style={styles.progressBarBg}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${(c.progress / c.total) * 100}%` },
-                ]}
-              />
-            </View>
-
-            <Text style={styles.challengeSmall}>
-              {c.progress} / {c.total}
-            </Text>
+        {/* Monedas (Placeholder) */}
+        <View style={[styles.card, styles.blueCard]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardText}>Recompensas</Text>
+            <Gift size={20} color="white" />
           </View>
-        ))}
-      </View>
-
-      {/* Logros */}
-      <View style={styles.block}>
-        <View style={styles.rowBetween}>
-          <View>
-            <Text style={styles.blockTitle}>Próximos logros</Text>
-            <Text style={styles.blockSubtitle}>
-              Sigue así para conseguirlos
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            onPress={() => router.push("/achievements")}
-            style={styles.outlineButton}
-          >
-            <Text style={styles.outlineButtonText}>Ver todos</Text>
+          <Text style={styles.cardValue}>Tienda</Text>
+          <TouchableOpacity style={styles.whiteButton} onPress={() => alert("Próximamente")}>
+            <Text style={styles.whiteButtonText}>Ver</Text>
           </TouchableOpacity>
         </View>
+      </View>
 
+      {/* Misiones Diarias */}
+      <View style={styles.block}>
+        <Text style={styles.blockTitle}>Misiones de hoy</Text>
+        <Text style={styles.blockSubtitle}>Complétalas para ganar XP</Text>
+
+        {dailyMissionsMock.map((m) => (
+          <View key={m.id} style={styles.missionCard}>
+            <Text style={styles.missionIcon}>{m.icon}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.missionTitle}>{m.title}</Text>
+              <Text style={styles.missionDesc}>{m.description}</Text>
+              <Text style={styles.badge}>+{m.xp} XP</Text>
+            </View>
+            <TouchableOpacity 
+                style={styles.button}
+                onPress={() => handleCompleteMission(m)}
+            >
+               <Text style={styles.buttonText}>Completar</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
+
+      {/* Acceso Directo a Logros Completos */}
+      <View style={styles.block}>
+        <View style={styles.rowBetween}>
+            <View>
+                <Text style={styles.blockTitle}>Últimos Logros</Text>
+                <Text style={styles.blockSubtitle}>Tus medallas más recientes</Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push("/achievements")} style={styles.outlineButton}>
+                <Text style={styles.outlineButtonText}>Ver todos</Text>
+            </TouchableOpacity>
+        </View>
+
+        {/* Mostramos los últimos 3 logros desbloqueados */}
         <View style={styles.achievementsGrid}>
-          <View style={styles.achievementCard}>
-            <Text style={styles.achievementIcon}>🏆</Text>
-            <Text style={styles.achievementTitle}>Madrugador</Text>
-            <Text style={styles.achievementSub}>3 días más</Text>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: "66%" }]} />
-            </View>
-          </View>
-
-          <View style={styles.achievementCard}>
-            <Text style={styles.achievementIcon}>⭐</Text>
-            <Text style={styles.achievementTitle}>Nivel 10</Text>
-            <Text style={styles.achievementSub}>550 XP restantes</Text>
-            <View style={[styles.progressBarBg]}>
-              <View style={[styles.progressBarFill, { width: "82%" }]} />
-            </View>
-          </View>
-
-          <View style={[styles.achievementCard, { opacity: 0.5 }]}>
-            <Lock size={22} color="#777" />
-            <Text style={styles.achievementTitle}>Logro secreto</Text>
-            <Text style={styles.achievementSub}>???</Text>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: "0%" }]} />
-            </View>
-          </View>
+            {logrosData?.desbloqueados.slice(0, 3).map((ach) => (
+                <View key={ach.id} style={styles.achievementCard}>
+                    <Text style={styles.achievementIcon}>{ach.icono}</Text>
+                    <Text style={styles.achievementTitle} numberOfLines={1}>{ach.nombre}</Text>
+                    <Text style={styles.achievementSub} numberOfLines={1}>{ach.rareza}</Text>
+                </View>
+            ))}
+            {(!logrosData?.desbloqueados || logrosData.desbloqueados.length === 0) && (
+                <Text style={{color: '#999', fontStyle: 'italic'}}>Aún no hay trofeos recientes.</Text>
+            )}
         </View>
       </View>
+
     </ScrollView>
   );
 }
 
-
-// ------------------------- STYLES -----------------------------
-
+// ESTILOS
 const styles = StyleSheet.create({
-  container: { padding: 16 },
+  container: { padding: 16, backgroundColor: '#f8fafc' },
   section: { marginBottom: 16 },
   title: { fontSize: 28, fontWeight: "700", color: "#1e1e1e" },
   subtitle: { fontSize: 16, color: "#555" },
-
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-
-  card: { padding: 16, borderRadius: 12, width: "47%" },
+  card: { padding: 16, borderRadius: 16, width: "47%", shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
   purpleCard: { backgroundColor: "#a855f7" },
   redCard: { backgroundColor: "#ef4444" },
   yellowCard: { backgroundColor: "#f59e0b" },
   blueCard: { backgroundColor: "#3b82f6" },
-
   cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  cardText: { color: "white", fontSize: 14 },
-  cardValue: { color: "white", fontSize: 22, fontWeight: "700", marginBottom: 6 },
-  cardSmall: { color: "white" },
-
-  whiteButton: {
-    backgroundColor: "white",
-    padding: 6,
-    borderRadius: 6,
-    marginTop: 8,
-  },
-  whiteButtonText: {
-    color: "#444",
-    textAlign: "center",
-    fontWeight: "600"
-  },
-
-  progressBarBg: {
-    height: 8,
-    backgroundColor: "#ffffff55",
-    borderRadius: 6,
-    overflow: "hidden",
-    marginVertical: 4,
-  },
+  cardText: { color: "white", fontSize: 14, fontWeight: '500' },
+  cardValue: { color: "white", fontSize: 22, fontWeight: "800", marginBottom: 6 },
+  cardSmall: { color: "rgba(255,255,255,0.9)", fontSize: 12 },
+  whiteButton: { backgroundColor: "white", padding: 6, borderRadius: 6, marginTop: 8, alignItems: 'center' },
+  whiteButtonText: { color: "#3b82f6", fontWeight: "700", fontSize: 12 },
+  progressBarBg: { height: 6, backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 6, overflow: "hidden", marginVertical: 6 },
   progressBarFill: { height: "100%", backgroundColor: "white" },
-
-  block: { marginTop: 24 },
-  blockTitle: { fontSize: 22, fontWeight: "700", color: "#1e1e1e" },
+  block: { marginTop: 24, marginBottom: 20 },
+  blockTitle: { fontSize: 20, fontWeight: "700", color: "#1e1e1e" },
   blockSubtitle: { color: "#666", marginBottom: 12 },
-
-  missionCard: {
-    flexDirection: "row",
-    padding: 12,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    marginBottom: 10,
-  },
-  missionDone: { backgroundColor: "#e8fbe8", borderColor: "#9ae6b4" },
-  missionIcon: { fontSize: 32, marginRight: 12 },
+  missionCard: { flexDirection: "row", padding: 16, backgroundColor: "#fff", borderRadius: 16, marginBottom: 10, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.03, elevation: 1 },
+  missionIcon: { fontSize: 28, marginRight: 16 },
   missionTitle: { fontWeight: "700", fontSize: 16, color: "#222" },
-  missionDesc: { color: "#555" },
-  badge: { marginTop: 4, color: "#444" },
-
-  button: {
-    backgroundColor: "#2563eb",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  buttonText: { color: "white" },
-
-  challengeCard: {
-    padding: 16,
-    backgroundColor: "white",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    marginBottom: 12,
-  },
-  challengeBadge: { fontSize: 32, textAlign: "center" },
-  challengeTitle: { fontWeight: "700", fontSize: 16, marginTop: 8 },
-  challengeDesc: { color: "#555", marginBottom: 10 },
-  challengeSmall: { textAlign: "right", color: "#444" },
-
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  outlineButton: {
-    borderWidth: 1,
-    borderColor: "#444",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  outlineButtonText: { color: "#444", fontWeight: "600" },
-
-  achievementsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 12,
-  },
-  achievementCard: {
-    width: "31%",
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  achievementIcon: { fontSize: 32, marginBottom: 6 },
-  achievementTitle: { fontWeight: "700", fontSize: 14 },
-  achievementSub: { color: "#777", marginBottom: 8 },
+  missionDesc: { color: "#64748b", fontSize: 13 },
+  badge: { marginTop: 4, color: "#6366f1", fontWeight: 'bold', fontSize: 12 },
+  button: { backgroundColor: "#dcfce7", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
+  buttonText: { color: "#166534", fontWeight: '600' },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  outlineButton: { borderWidth: 1, borderColor: "#cbd5e1", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  outlineButtonText: { color: "#475569", fontWeight: "600", fontSize: 12 },
+  achievementsGrid: { flexDirection: "row", gap: 10 },
+  achievementCard: { width: "31%", backgroundColor: "white", borderRadius: 12, padding: 12, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
+  achievementIcon: { fontSize: 28, marginBottom: 6 },
+  achievementTitle: { fontWeight: "700", fontSize: 12, color: '#334155', textAlign: 'center' },
+  achievementSub: { color: "#94a3b8", fontSize: 10, textAlign: 'center' },
 });
