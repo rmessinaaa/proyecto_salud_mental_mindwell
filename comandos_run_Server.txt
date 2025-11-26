@@ -1,0 +1,100 @@
+===================================================================
+ GUÍA DE DESPLIEGUE E INSTALACIÓN - PROYECTO MINDWELL
+===================================================================
+
+Este documento contiene los pasos necesarios para ejecutar el proyecto 
+"MindWell" desde cero en cualquier computador.
+
+--- PRERREQUISITOS ---
+1. Docker Desktop instalado y en ejecución (Icono de la ballena activo).
+2. Node.js (Versión LTS) instalado.
+3. Git instalado.
+4. Un dispositivo móvil con la app "Expo Go" o un emulador configurado.
+
+===================================================================
+ PASO 1: DESCARGAR EL PROYECTO
+===================================================================
+Abre tu terminal (PowerShell o CMD) y clona el repositorio:
+
+   git clone <URL_DE_TU_REPO_GITHUB>
+   cd nuevo_proyecto_salud_mental
+
+===================================================================
+ PASO 2: INICIAR EL BACKEND (SERVIDOR)
+===================================================================
+El servidor y la base de datos corren dentro de contenedores Docker.
+Asegúrate de estar en la carpeta raíz del proyecto y ejecuta:
+
+   docker-compose up --build
+
+> RESULTADO ESPERADO:
+  Verás logs de colores y al final el mensaje:
+  "Starting development server at http://0.0.0.0:8000/"
+
+> NOTA IMPORTANTE:
+  NO cierres esta terminal. El servidor debe seguir corriendo.
+  Para los siguientes pasos, abre terminales nuevas.
+
+===================================================================
+ PASO 3: INICIAR EL FRONTEND (APP MÓVIL)
+===================================================================
+1. Abre una NUEVA terminal.
+2. Entra a la carpeta del frontend:
+
+   cd frontend
+
+3. Instala las dependencias (Solo necesario la primera vez):
+
+   npm install
+
+4. Inicia la aplicación:
+
+   npx expo start -c
+
+> RESULTADO ESPERADO:
+  Aparecerá un código QR en la terminal.
+  - Escanéalo con la app "Expo Go" en tu Android/iPhone.
+  - O presiona la tecla 'a' para abrir en Emulador Android.
+
+===================================================================
+ PASO 4: CONFIGURACIÓN INICIAL (ADMINISTRADOR)
+===================================================================
+Como la base de datos se crea nueva en cada instalación, necesitas 
+crear un usuario administrador para acceder al panel.
+
+1. Abre una NUEVA terminal en la carpeta raíz.
+2. Ejecuta el siguiente comando:
+
+   docker-compose exec backend python manage.py createsuperuser
+
+3. Sigue las instrucciones:
+   - Username: admin
+   - Password: admin123 (No se verán los caracteres al escribir)
+
+4. Accede al panel de administración en tu navegador:
+   http://localhost:8000/admin
+
+===================================================================
+ PASO 5: EJECUTAR PRUEBAS Y SIMULACIÓN (QA)
+===================================================================
+Si deseas verificar que el sistema funciona bajo carga o ejecutar
+los tests automatizados:
+
+OPCIÓN A: Correr Tests Automáticos (Integración)
+------------------------------------------------
+   docker-compose exec backend python manage.py test usuarios
+
+OPCIÓN B: Generar 15 Usuarios Simulados (Prueba de Carga)
+---------------------------------------------------------
+   cmd /c "docker-compose exec backend python manage.py shell < backend/simulacion.py"
+
+   (Nota: Si usas Mac o Linux, quita el 'cmd /c' y las comillas).
+
+===================================================================
+ SOLUCIÓN DE PROBLEMAS COMUNES
+===================================================================
+- Error "Docker daemon not running":
+  Abre la aplicación Docker Desktop y espera a que el icono se ponga verde.
+
+- Error de red en el celular:
+  Asegúrate de que tu celular y tu PC estén conectados a la misma red WiFi.
