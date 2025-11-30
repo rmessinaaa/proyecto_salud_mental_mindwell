@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // CONFIGURACIÓN DE RED
 // ==========================================
 // ⚠️ Asegúrate de que esta IP sea la correcta de tu PC
-const API_URL = 'http://192.168.1.13:8000/api';
+const API_URL = 'http://192.168.1.81:8000/api';
 
 // ==========================================
 // INTERFACES

@@ -1,19 +1,35 @@
-// File: LoginView.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
-import { Heart, User, Lock } from "lucide-react-native"; // Cambié Mail por User para coincidir con el backend
+import { Heart, User, Lock, Check } from "lucide-react-native"; 
 import { useRouter } from "expo-router";
-import { api } from "../services/api"; // <--- Importamos la API
+import AsyncStorage from '@react-native-async-storage/async-storage'; // ✅ LIBRERÍA NECESARIA
+import { api } from "../services/api"; 
 
 export default function LoginView() {
   const router = useRouter();
 
-  // 1. Estados para guardar los datos
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false); // ✅ Estado para el checkbox
 
-  // 2. Función lógica de Login
+  // ✅ 1. VERIFICAR SESIÓN AUTOMÁTICA AL INICIAR
+  useEffect(() => {
+    const checkLogin = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          // (Opcional) Aquí podrías validar si el token sigue vivo con la API
+          console.log("Sesión recuperada");
+          router.replace("/(tabs)/dashboard");
+        }
+      } catch (e) {
+        console.log("Error recuperando sesión", e);
+      }
+    };
+    checkLogin();
+  }, []);
+
   const handleLogin = async () => {
     if (!username || !password) {
       Alert.alert("Atención", "Por favor ingresa tu usuario y contraseña");
@@ -23,16 +39,24 @@ export default function LoginView() {
     setLoading(true);
 
     try {
-      // Llamamos a tu Backend
       const response = await api.login({
         username: username,
         password: password
       });
 
-      console.log("Login exitoso. Token:", response.token);
+      console.log("Login exitoso.");
       
-      // Si todo sale bien, vamos al Dashboard
-      // Usamos 'replace' para que no puedan volver al login con el botón 'atrás'
+      // ✅ 2. GUARDAR TOKEN SI "RECORDARME" ESTÁ ACTIVO
+      if (rememberMe) {
+        await AsyncStorage.setItem('userToken', response.token);
+      } else {
+        // Si no marca la casilla, es buena práctica limpiar cualquier token viejo
+        await AsyncStorage.removeItem('userToken');
+      }
+      
+      // Configurar token en la instancia de API (si usas axios global)
+      // api.setAuthToken(response.token); 
+
       router.replace("/(tabs)/dashboard");
 
     } catch (error: any) {
@@ -58,20 +82,18 @@ export default function LoginView() {
         {/* Formulario */}
         <View style={styles.card}>
           
-          {/* CAMBIO: Usuario (Django usa username por defecto) */}
           <Text style={styles.label}>Nombre de usuario</Text>
           <View style={styles.inputWrapper}>
             <User size={20} color="#94a3b8" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Tu nombre de usuario"
-              value={username}           // <--- Conectado
-              onChangeText={setUsername} // <--- Conectado
+              value={username}
+              onChangeText={setUsername}
               autoCapitalize="none"
             />
           </View>
 
-          {/* Password */}
           <Text style={styles.label}>Contraseña</Text>
           <View style={styles.inputWrapper}>
             <Lock size={20} color="#94a3b8" style={styles.inputIcon} />
@@ -79,24 +101,31 @@ export default function LoginView() {
               style={styles.input}
               placeholder="••••••••"
               secureTextEntry
-              value={password}           // <--- Conectado
-              onChangeText={setPassword} // <--- Conectado
+              value={password}
+              onChangeText={setPassword}
             />
           </View>
 
-          {/* Recordarme + Olvidar */}
+          {/* OPCIONES DE RECUPERACIÓN */}
           <View style={styles.rowBetween}>
-            <View style={styles.rowCenter}>
-              <View style={styles.checkbox} />
+            
+            {/* Checkbox "Recordarme" */}
+            <TouchableOpacity 
+              style={styles.rowCenter} 
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe && <Check size={12} color="white" />}
+              </View>
               <Text style={styles.checkboxText}>Recordarme</Text>
-            </View>
+            </TouchableOpacity>
 
-            <TouchableOpacity>
+            {/* Link Olvidaste Contraseña */}
+            <TouchableOpacity onPress={() => router.push("/forgot-password")}> 
               <Text style={styles.link}>¿Olvidaste tu contraseña?</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Botón Login con Loading */}
           <TouchableOpacity 
             style={[styles.button, loading && { opacity: 0.7 }]} 
             onPress={handleLogin}
@@ -109,7 +138,6 @@ export default function LoginView() {
             )}
           </TouchableOpacity>
 
-          {/* Registro */}
           <Text style={styles.registerText}>
             ¿No tienes cuenta?{" "}
             <Text style={styles.link} onPress={() => router.push("/register")}>
@@ -126,9 +154,6 @@ export default function LoginView() {
   );
 }
 
-// ----------------------
-// STYLES (Tus estilos originales, sin cambios)
-// ----------------------
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center", padding: 16 },
   box: { width: "100%", maxWidth: 380 },
@@ -143,7 +168,9 @@ const styles = StyleSheet.create({
   input: { flex: 1, height: 40, color: "#1e293b" },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", marginTop: 16, alignItems: "center" },
   rowCenter: { flexDirection: "row", alignItems: "center" },
-  checkbox: { width: 18, height: 18, borderWidth: 1, borderColor: "#94a3b8", borderRadius: 4, marginRight: 6 },
+  // Estilos del Checkbox
+  checkbox: { width: 20, height: 20, borderWidth: 1, borderColor: "#94a3b8", borderRadius: 4, marginRight: 8, justifyContent: 'center', alignItems: 'center' },
+  checkboxChecked: { backgroundColor: "#a855f7", borderColor: "#a855f7" },
   checkboxText: { color: "#475569" },
   link: { color: "#8b5cf6", fontWeight: "600" },
   button: { marginTop: 20, backgroundColor: "#a855f7", paddingVertical: 12, borderRadius: 8, alignItems: "center" },

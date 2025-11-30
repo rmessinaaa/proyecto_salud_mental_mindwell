@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal, TextInput, StyleSheet, Platform,
-  LogBox // ✅ IMPORTADO
+  LogBox 
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -11,13 +11,12 @@ import * as Notifications from 'expo-notifications';
 
 import { api, RegistroDiario, UserProfile } from "../services/api"; 
 
-// ✅ ESTO SILENCIA EL ERROR ROJO MOLESTO
+// ✅ SILENCIADOR DE ERRORES DE EXPO GO
 LogBox.ignoreLogs([
   'expo-notifications: Android Push notifications',
   'functionality is not fully supported in Expo Go',
 ]);
 
-// CONFIGURACIÓN: Solo alertas locales
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -33,7 +32,9 @@ const currentMonth = "Noviembre 2025";
 
 export default function CalendarView() {
   const router = useRouter();
-  const [selectedDay, setSelectedDay] = useState(new Date().getDate());
+  
+  const today = new Date();
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   
   const [loading, setLoading] = useState(true);
   const [registros, setRegistros] = useState<RegistroDiario[]>([]);
@@ -43,6 +44,7 @@ export default function CalendarView() {
   const [modalVisible, setModalVisible] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newTime, setNewTime] = useState("09:00"); 
+  const [newDayInput, setNewDayInput] = useState(""); 
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,7 +54,6 @@ export default function CalendarView() {
 
   async function configurarNotificaciones() {
     try {
-      // Pedimos permisos. Si Expo Go lanza error interno aquí, LogBox lo ocultará.
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== 'granted') return;
 
@@ -64,9 +65,7 @@ export default function CalendarView() {
           lightColor: '#FF231F7C',
         });
       }
-    } catch (error) {
-      console.log("Error silencioso en permisos (normal en Expo Go 53):", error);
-    }
+    } catch (error) {}
   }
 
   const cargarDatos = async () => {
@@ -85,9 +84,21 @@ export default function CalendarView() {
     }
   };
 
-  const scheduleLocalNotification = async (titulo: string, secondsUntil: number) => {
+  const openModal = () => {
+    setNewDayInput(selectedDay.toString()); 
+    setNewTime("09:00");
+    setNewTitle("");
+    setModalVisible(true);
+  };
+
+  const scheduleLocalNotification = async (titulo: string, fechaObjetivo: Date) => {
     try {
-        if (secondsUntil <= 0) return;
+        const now = new Date();
+        const diffMs = fechaObjetivo.getTime() - now.getTime();
+        const diffSec = Math.floor(diffMs / 1000);
+
+        // Si ya pasó o es inmediato, lanzamos en 1 seg
+        const secondsToTrigger = diffSec > 0 ? diffSec : 1;
 
         await Notifications.scheduleNotificationAsync({
             content: { 
@@ -98,7 +109,7 @@ export default function CalendarView() {
             },
             trigger: { 
                 type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                seconds: secondsUntil,
+                seconds: secondsToTrigger, 
                 repeats: false,
                 channelId: 'default',
             },
@@ -125,39 +136,86 @@ export default function CalendarView() {
   };
 
   const handleSaveEvent = async () => {
-    if (!newTitle.trim()) { Alert.alert("Error", "Escribe un título"); return; }
+    if (!newTitle.trim()) { Alert.alert("Error", "Escribe un título."); return; }
+    
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(newTime)) {
+        Alert.alert("Hora inválida", "Formato correcto: HH:MM (ej: 14:30)");
+        return;
+    }
+
+    const dayInt = parseInt(newDayInput);
+    if (isNaN(dayInt) || dayInt < 1 || dayInt > 31) {
+        Alert.alert("Día inválido", "Ingresa un día entre 1 y 31.");
+        return;
+    }
+
     setSaving(true);
+    
     try {
         const now = new Date();
-        const [horas, minutos] = newTime.split(':');
+        const [horasStr, minutosStr] = newTime.split(':');
+        let horas = parseInt(horasStr);
+        let minutos = parseInt(minutosStr);
         
+        // Crear fecha objetivo
         const fechaEvento = new Date();
-        fechaEvento.setHours(parseInt(horas), parseInt(minutos), 0);
+        fechaEvento.setDate(dayInt); 
+        // IMPORTANTE: Ponemos segundos en 0 para precisión de minuto
+        fechaEvento.setHours(horas, minutos, 0, 0);
         
-        if (selectedDay !== now.getDate()) { 
-            fechaEvento.setDate(selectedDay); 
+        // Comparación tolerante (ignorando segundos)
+        const nowFloored = new Date(now);
+        nowFloored.setSeconds(0, 0);
+        let eventFloored = new Date(fechaEvento);
+        eventFloored.setSeconds(0, 0);
+
+        // --- LÓGICA INTELIGENTE DE CORRECCIÓN AM/PM ---
+        // Si la hora introducida ya pasó (ej: pusiste 2:19 y son las 14:18)
+        // pero SUMANDO 12 horas sería futuro válido (14:19), asumimos que quisiste decir PM.
+        if (eventFloored.getTime() < nowFloored.getTime()) {
+            const eventPM = new Date(eventFloored);
+            eventPM.setHours(eventPM.getHours() + 12);
+            
+            // Si sumando 12h resulta en el futuro Y sigue siendo el mismo día
+            if (eventPM.getTime() >= nowFloored.getTime() && eventPM.getDate() === dayInt) {
+                // ¡Corregimos automáticamente!
+                console.log("Auto-corrigiendo AM a PM");
+                fechaEvento.setHours(horas + 12);
+                eventFloored = eventPM; // Actualizamos para pasar la validación
+            } else {
+                // Si aún así falla, mostramos alerta educativa
+                let sugerencia = "";
+                if (horas < 12) {
+                    sugerencia = `\n\nTip: Para las ${horas}:${minutosStr} de la tarde, usa ${horas + 12}:${minutosStr}.`;
+                }
+                Alert.alert("Fecha pasada", "Esa hora ya pasó." + sugerencia);
+                setSaving(false);
+                return;
+            }
         }
 
-        if (fechaEvento.getTime() <= now.getTime()) {
-             fechaEvento.setDate(fechaEvento.getDate() + 1);
-        }
-
-        const secondsUntil = Math.floor((fechaEvento.getTime() - now.getTime()) / 1000);
-
+        // Guardar en Backend
         await api.crearRecordatorio({
             titulo: newTitle,
             fecha_hora: fechaEvento.toISOString(),
             tipo: 'otro'
         });
         
-        await scheduleLocalNotification(newTitle, secondsUntil);
+        // Programar notificación
+        await scheduleLocalNotification(newTitle, fechaEvento);
         
-        Alert.alert("Éxito", `Recordatorio programado para dentro de ${Math.round(secondsUntil/60)} minutos.`);
+        const diffMs = fechaEvento.getTime() - now.getTime();
+        const minutesDisplay = Math.ceil(diffMs / 1000 / 60);
+        const tiempoTexto = minutesDisplay <= 1 ? "menos de 1 minuto" : `${minutesDisplay} minutos`;
+        
+        Alert.alert("Listo", `Programado para dentro de ${tiempoTexto}.`);
+        
         setModalVisible(false);
         setNewTitle("");
         cargarDatos(); 
     } catch (error) { 
-        Alert.alert("Error", "No se pudo guardar."); 
+        Alert.alert("Error", "No se pudo conectar con el servidor."); 
         console.log(error);
     } finally { 
         setSaving(false); 
@@ -165,27 +223,34 @@ export default function CalendarView() {
   };
 
   const handleQuickReminder = async (actividad: string) => {
-    if (!perfil?.notificaciones_diarias) { Alert.alert("Aviso", "Activa las notificaciones."); return; }
+    if (!perfil?.notificaciones_diarias) { Alert.alert("Aviso", "Activa notificaciones."); return; }
     try {
-        const secondsUntil = 10;
         const fecha = new Date();
-        fecha.setSeconds(fecha.getSeconds() + secondsUntil);
+        fecha.setSeconds(fecha.getSeconds() + 2); // 2 segundos en el futuro exacto
         
         await api.crearRecordatorio({ titulo: actividad, fecha_hora: fecha.toISOString(), tipo: 'meditacion' });
-        await scheduleLocalNotification(actividad, secondsUntil);
+        await scheduleLocalNotification(actividad, fecha);
 
-        Alert.alert("Prueba", `Notificación en ${secondsUntil} segundos.`);
+        Alert.alert("Prueba", `Notificación en 2 segundos.`);
         cargarDatos();
     } catch (error) { console.log(error); }
   };
 
   const tieneActividad = (day: number) => {
-    const hayDiario = registros.some(r => new Date(r.fecha || "").getDate() === day);
-    const hayRecordatorio = recordatorios.some(r => new Date(r.fecha_hora).getDate() === day);
-    return hayDiario || hayRecordatorio;
+    const checkDate = (fechaStr: string) => {
+        if (!fechaStr) return false;
+        const d = new Date(fechaStr);
+        return d.getDate() === day && 
+               d.getMonth() === today.getMonth() && 
+               d.getFullYear() === today.getFullYear();
+    };
+
+    return registros.some(r => checkDate(r.fecha || "")) || 
+           recordatorios.some(r => checkDate(r.fecha_hora));
   };
+
   const calendarDays = Array.from({ length: 30 }, (_, i) => ({
-    day: i + 1, hasActivity: tieneActividad(i + 1), isToday: i + 1 === new Date().getDate(),
+    day: i + 1, hasActivity: tieneActividad(i + 1), isToday: i + 1 === today.getDate(),
   }));
 
   const todaySchedule = [
@@ -202,7 +267,7 @@ export default function CalendarView() {
           <Text style={{ fontSize: 22, fontWeight: "bold", color: "#1e293b" }}>Calendario</Text>
           <Text style={{ color: "#64748b" }}>Tu viaje de bienestar</Text>
         </View>
-        <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.newButton}>
+        <TouchableOpacity onPress={openModal} style={styles.newButton}>
           <Plus size={18} color="white" />
           <Text style={{ color: "white", marginLeft: 6 }}>Nuevo</Text>
         </TouchableOpacity>
@@ -264,16 +329,48 @@ export default function CalendarView() {
                     <Text style={styles.modalTitle}>Nuevo Recordatorio</Text>
                     <TouchableOpacity onPress={() => setModalVisible(false)}><X size={24} color="#64748b" /></TouchableOpacity>
                 </View>
+                
                 <View style={{gap: 16, marginVertical: 20}}>
+                    {/* CAMPO TÍTULO */}
                     <View>
                         <Text style={styles.label}>Título</Text>
-                        <TextInput style={styles.input} placeholder="Ej: Ir al gimnasio" value={newTitle} onChangeText={setNewTitle} />
+                        <TextInput 
+                            style={styles.input} 
+                            placeholder="Ej: Ir al gimnasio" 
+                            value={newTitle} 
+                            onChangeText={setNewTitle} 
+                        />
                     </View>
-                    <View>
-                        <Text style={styles.label}>Hora (HH:MM)</Text>
-                        <TextInput style={styles.input} placeholder="14:30" value={newTime} onChangeText={setNewTime} keyboardType="numbers-and-punctuation" />
+
+                    <View style={{flexDirection: 'row', gap: 12}}>
+                        {/* CAMPO DÍA (NUEVO) */}
+                        <View style={{flex: 1}}>
+                            <Text style={styles.label}>Día</Text>
+                            <TextInput 
+                                style={styles.input} 
+                                placeholder="DD" 
+                                value={newDayInput} 
+                                onChangeText={setNewDayInput} 
+                                keyboardType="numeric" 
+                                maxLength={2}
+                            />
+                        </View>
+                        
+                        {/* CAMPO HORA */}
+                        <View style={{flex: 2}}>
+                            <Text style={styles.label}>Hora (24h)</Text>
+                            <TextInput 
+                                style={styles.input} 
+                                placeholder="Ej: 14:30" 
+                                value={newTime} 
+                                onChangeText={setNewTime} 
+                                keyboardType="numbers-and-punctuation" 
+                                maxLength={5}
+                            />
+                        </View>
                     </View>
                 </View>
+
                 <TouchableOpacity style={styles.saveButton} onPress={handleSaveEvent} disabled={saving}>
                     {saving ? <ActivityIndicator color="white"/> : <Text style={styles.saveButtonText}>Guardar y Programar</Text>}
                 </TouchableOpacity>
