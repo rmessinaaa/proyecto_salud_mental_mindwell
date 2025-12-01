@@ -4,8 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // CONFIGURACIÓN DE RED
 // ==========================================
 // ⚠️ Asegúrate de que esta IP sea la correcta de tu PC
-// Si usas emulador Android (Android Studio), usa 'http://10.0.2.2:8000/api'
-// Si usas dispositivo físico o Expo Go, usa la IP de tu PC ej: 'http://192.168.1.81:8000/api'
 const API_URL = 'http://192.168.1.81:8000/api';
 
 // ==========================================
@@ -23,7 +21,6 @@ export interface RegistroDiario {
   hora?: string;  // HH:MM:SS
 }
 
-// ✅ Nueva interfaz para Recordatorios
 export interface Recordatorio {
   id?: number;
   titulo: string;
@@ -50,7 +47,6 @@ export interface AuthResponse {
   id: number;
 }
 
-// Interfaces Gamificación
 export interface Logro {
   id: number;
   nombre: string;
@@ -67,6 +63,15 @@ export interface LogrosResponse {
   desbloqueados: Logro[];
   bloqueados: Logro[];
   puntos_totales: number;
+}
+
+// ✅ NUEVA INTERFAZ PARA COMUNIDAD
+export interface Publicacion {
+  id: number;
+  username: string;
+  contenido: string;
+  fecha_creacion: string;
+  likes: number;
 }
 
 // ==========================================
@@ -307,6 +312,37 @@ export const api = {
     } catch (error) {
       console.error("Error eliminarRecordatorio:", error);
       return false;
+    }
+  },
+
+  // -------------------------
+  // 7. COMUNIDAD (NUEVO)
+  // -------------------------
+  getPublicaciones: async (): Promise<Publicacion[]> => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/comunidad/feed/`, { headers });
+      if (!response.ok) throw new Error("Error obteniendo feed");
+      return await response.json();
+    } catch (error) {
+      console.error("Error getPublicaciones:", error);
+      return [];
+    }
+  },
+
+  crearPublicacion: async (contenido: string): Promise<Publicacion | null> => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/comunidad/feed/`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ contenido }),
+      });
+      if (!response.ok) throw new Error("Error publicando");
+      return await response.json();
+    } catch (error) {
+      console.error("Error crearPublicacion:", error);
+      return null;
     }
   },
 

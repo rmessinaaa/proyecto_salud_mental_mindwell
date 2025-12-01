@@ -18,4 +18,8 @@ urlpatterns = [
     # 3. Gamificación (Logros, Niveles)
     # Ejemplo: /api/gamificacion/logros/
     path('api/gamificacion/', include('gamificacion.urls')),
+
+    # 4. Comunidad (Feed, Publicaciones)
+    # Ejemplo: /api/comunidad/feed/
+    path('api/comunidad/', include('comunidad.urls')),
 ]
