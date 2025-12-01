@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+// ✅ IMPORTAMOS useFocusEffect para detectar cuando volvemos a esta pantalla
+import { router, useFocusEffect } from "expo-router";
 
 // Icons
 import {
@@ -28,12 +29,19 @@ export default function DashboardView() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+  // ✅ CAMBIO CLAVE: Usamos useFocusEffect en lugar de useEffect
+  // Esto ejecuta cargarDatos() CADA VEZ que la pantalla recibe el foco (al volver de Settings)
+  useFocusEffect(
+    useCallback(() => {
+      cargarDatos();
+    }, [])
+  );
 
   const cargarDatos = async () => {
     try {
+      // Opcional: Si quieres que se vea el spinner cada vez que vuelves, descomenta esto:
+      // setLoading(true); 
+      
       const datos = await api.getPerfil();
       if (datos) {
         setUser(datos);
