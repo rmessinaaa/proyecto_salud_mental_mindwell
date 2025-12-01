@@ -1,101 +1,184 @@
 ===================================================================
- GUÍA DE DESPLIEGUE E INSTALACIÓN - PROYECTO MINDWELL
-===================================================================
+GUÍA DE DESPLIEGUE E INSTALACIÓN - PROYECTO MINDWELL
 
-Este documento contiene los pasos necesarios para ejecutar el proyecto 
+Este documento contiene los pasos necesarios para ejecutar el proyecto
 "MindWell" desde cero en cualquier computador.
 
 --- PRERREQUISITOS ---
-1. Docker Desktop instalado y en ejecución (Icono de la ballena activo).
-2. Node.js (Versión LTS) instalado.
-3. Git instalado.
-4. Un dispositivo móvil con la app "Expo Go" o un emulador configurado.
+
+Docker Desktop instalado y en ejecución (Icono de la ballena activo).
+
+Node.js (Versión LTS) instalado.
+
+Python instalado (para crear el entorno virtual local).
+
+Git instalado.
+
+Un dispositivo móvil con la app "Expo Go" o un emulador configurado.
 
 ===================================================================
- PASO 1: DESCARGAR EL PROYECTO
-===================================================================
-Abre tu terminal (PowerShell o CMD) y clona el repositorio:
+PASO 1: DESCARGAR EL PROYECTO
 
-   git clone <URL_DE_TU_REPO_GITHUB>
-   cd nuevo_proyecto_salud_mental
+Abre tu terminal (PowerShell o CMD) en la carpeta donde guardas tus
+proyectos y ejecuta:
+
+git clone https://github.com/rmessinaaa/proyecto_salud_mental_mindwell.git
+cd proyecto_salud_mental_mindwell
+
+UBICACIÓN FINAL: Debes quedar en la carpeta raíz del proyecto.
 
 ===================================================================
- PASO 2: INICIAR EL BACKEND (SERVIDOR)
+PASO 2: CONFIGURAR ENTORNO VIRTUAL LOCAL (IMPORTANTE PARA VS CODE)
+
+Aunque Docker tiene su propio Python, necesitamos instalar las librerías
+localmente para que VS Code no marque errores de importación (líneas rojas).
+
+En la terminal (asegúrate de estar en la raíz del proyecto), entra
+a la carpeta del backend:
+
+cd backend
+
+Crea el entorno virtual (se creará una carpeta llamada 'venv'):
+
+python -m venv venv
+
+Activa el entorno virtual (Comando para Windows PowerShell):
+
+.\venv\Scripts\activate
+
+(Verás que aparece "(venv)" al principio de tu línea de comandos).
+
+Instala las dependencias en este entorno local:
+
+pip install -r requirements.txt
+
+Una vez termine, regresa a la carpeta raíz del proyecto:
+
+cd ..
+
+CRUCIAL: SELECCIONAR EL INTÉRPRETE EN VS CODE
+Para que las líneas rojas desaparezcan en el editor:
+
+Presiona Ctrl + Shift + P en VS Code.
+
+Escribe y selecciona: Python: Select Interpreter.
+
+Busca y haz clic en la opción que dice ('venv': venv) o la ruta
+.\backend\venv\Scripts\python.exe.
+
 ===================================================================
+PASO 3: INICIAR EL BACKEND (SERVIDOR DOCKER)
+
 El servidor y la base de datos corren dentro de contenedores Docker.
-Asegúrate de estar en la carpeta raíz del proyecto y ejecuta:
 
-   docker-compose up --build
+Asegúrate de estar en la carpeta raíz del proyecto (donde está el
+archivo docker-compose.yml).
 
-> RESULTADO ESPERADO:
-  Verás logs de colores y al final el mensaje:
-  "Starting development server at http://0.0.0.0:8000/"
+Ejecuta:
 
-> NOTA IMPORTANTE:
-  NO cierres esta terminal. El servidor debe seguir corriendo.
-  Para los siguientes pasos, abre terminales nuevas.
+docker-compose up --build
 
-===================================================================
- PASO 3: INICIAR EL FRONTEND (APP MÓVIL)
-===================================================================
-1. Abre una NUEVA terminal.
-2. Entra a la carpeta del frontend:
+RESULTADO ESPERADO:
+Verás logs de colores, las migraciones de base de datos ejecutándose
+automáticamente y al final el mensaje:
+"Starting development server at http://0.0.0.0:8000/"
 
-   cd frontend
-
-3. Instala las dependencias (Solo necesario la primera vez):
-
-   npm install
-
-4. Inicia la aplicación:
-
-   npx expo start -c
-
-> RESULTADO ESPERADO:
-  Aparecerá un código QR en la terminal.
-  - Escanéalo con la app "Expo Go" en tu Android/iPhone.
-  - O presiona la tecla 'a' para abrir en Emulador Android.
+NOTA IMPORTANTE:
+NO cierres esta terminal. El servidor debe seguir corriendo aquí.
+Para los siguientes pasos, abre terminales nuevas.
 
 ===================================================================
- PASO 4: CONFIGURACIÓN INICIAL (ADMINISTRADOR)
+PASO 4: INICIAR EL FRONTEND (APP MÓVIL)
+
+CONFIGURACIÓN DE IP (OBLIGATORIO):
+Antes de iniciar, debes poner TU dirección IP local para que el celular
+pueda conectarse a tu PC.
+
+Abre el archivo: frontend/services/api.ts
+
+Busca la línea: const API_URL = 'http://192.168.1.81:8000/api';
+
+Cambia 192.168.1.81 por TU IP local (Ej: 192.168.0.15 o 10.0.0.5).
+
+Tip: Puedes ver tu IP ejecutando ipconfig en la terminal.
+
+Abre una NUEVA terminal (pestaña nueva en VS Code o ventana aparte).
+
+Desde la raíz del proyecto, entra a la carpeta del frontend:
+
+cd frontend
+
+Instala las dependencias (Solo necesario la primera vez):
+
+npm install
+
+Inicia la aplicación:
+
+npx expo start -c
+
+RESULTADO ESPERADO:
+Aparecerá un código QR en la terminal.
+
+Escanéalo con la app "Expo Go" en tu Android/iPhone.
+
+O presiona la tecla 'a' para abrir en Emulador Android.
+
 ===================================================================
-Como la base de datos se crea nueva en cada instalación, necesitas 
-crear un usuario administrador para acceder al panel.
+PASO 5: CONFIGURACIÓN INICIAL (CREAR ADMIN)
 
-1. Abre una NUEVA terminal en la carpeta raíz.
-2. Ejecuta el siguiente comando:
+Como la base de datos se crea nueva, necesitas crear un superusuario.
 
-   docker-compose exec backend python manage.py createsuperuser
+Abre una NUEVA terminal.
 
-3. Sigue las instrucciones:
-   - Username: admin
-   - Password: admin123 (No se verán los caracteres al escribir)
+Asegúrate de estar en la carpeta raíz del proyecto.
 
-4. Accede al panel de administración en tu navegador:
-   http://localhost:8000/admin
+Ejecuta el siguiente comando (esto entra al contenedor Docker):
+
+docker-compose exec backend python manage.py createsuperuser
+
+Sigue las instrucciones en pantalla:
+
+Username: admin
+
+Password: admin123 (No se verán los caracteres al escribir)
+
+Accede al panel de administración en tu navegador:
+http://localhost:8000/admin
 
 ===================================================================
- PASO 5: EJECUTAR PRUEBAS Y SIMULACIÓN (QA)
-===================================================================
+PASO 6: EJECUTAR PRUEBAS Y SIMULACIÓN (QA)
+
 Si deseas verificar que el sistema funciona bajo carga o ejecutar
-los tests automatizados:
+los tests automatizados.
+
+UBICACIÓN: Ejecutar desde una terminal en la carpeta raíz.
 
 OPCIÓN A: Correr Tests Automáticos (Integración)
-------------------------------------------------
-   docker-compose exec backend python manage.py test usuarios
+
+docker-compose exec backend python manage.py test usuarios
 
 OPCIÓN B: Generar 15 Usuarios Simulados (Prueba de Carga)
----------------------------------------------------------
-   cmd /c "docker-compose exec backend python manage.py shell < backend/simulacion.py"
 
-   (Nota: Si usas Mac o Linux, quita el 'cmd /c' y las comillas).
+Para Windows (PowerShell/CMD):
+docker-compose exec -T backend python manage.py shell < backend/simulacion.py
+
+(Nota: Si el comando anterior falla en PowerShell, intenta copiar el
+contenido de simulacion.py y pegarlo dentro de python manage.py shell).
 
 ===================================================================
- SOLUCIÓN DE PROBLEMAS COMUNES
-===================================================================
-- Error "Docker daemon not running":
-  Abre la aplicación Docker Desktop y espera a que el icono se ponga verde.
+SOLUCIÓN DE PROBLEMAS COMUNES
 
-- Error de red en el celular:
-  Asegúrate de que tu celular y tu PC estén conectados a la misma red WiFi.
-https://github.com/rmessinaaa/proyecto_salud_mental_mindwell.git
+Error "Docker daemon not running":
+Abre la aplicación Docker Desktop y espera a que el icono se ponga verde.
+
+Error "disk I/O error" en base de datos:
+
+Detén Docker (Ctrl+C).
+
+Borra el archivo backend/db.sqlite3.
+
+Ejecuta docker-compose up nuevamente.
+
+Error de red en el celular (Network Error):
+Asegúrate de que tu celular y tu PC estén conectados a la misma red WiFi.
+Revisa nuevamente el PASO 4 punto 1 (IP en api.ts).
