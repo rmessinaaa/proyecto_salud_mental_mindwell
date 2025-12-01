@@ -187,7 +187,11 @@ export default function GameView() {
 
 // ESTILOS
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: '#f8fafc' },
+  container: { 
+    padding: 16, 
+    backgroundColor: '#f8fafc',
+    paddingTop: 60 // ✅ AJUSTE: Margen superior para evitar superposición
+  },
   section: { marginBottom: 16 },
   title: { fontSize: 28, fontWeight: "700", color: "#1e1e1e" },
   subtitle: { fontSize: 16, color: "#555" },

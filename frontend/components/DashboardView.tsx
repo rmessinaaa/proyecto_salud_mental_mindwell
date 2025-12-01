@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 // Importamos los iconos
 import {
@@ -35,21 +35,36 @@ export default function DashboardView() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 2. EFECTO DE CARGA
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+  // 2. EFECTO DE CARGA (Optimizado)
+  // useFocusEffect asegura que esto corra cada vez que la pantalla se hace visible
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true; // Bandera para evitar actualizaciones si el componente se desmonta
 
-  const cargarDatos = async () => {
-    try {
-      const datos = await api.getPerfil();
-      setUser(datos);
-    } catch (error) {
-      console.log("Error cargando perfil en dashboard");
-    } finally {
-      setLoading(false);
-    }
-  };
+      const fetchProfile = async () => {
+        try {
+          // Llamamos a la API directamente aquí para asegurar frescura
+          const datos = await api.getPerfil();
+          
+          if (isActive) {
+            setUser(datos);
+          }
+        } catch (error) {
+          console.log("Error cargando perfil en dashboard:", error);
+        } finally {
+          if (isActive) {
+            setLoading(false);
+          }
+        }
+      };
+
+      fetchProfile();
+
+      return () => {
+        isActive = false; // Limpieza al perder el foco
+      };
+    }, [])
+  );
 
   // 3. GENERAR FECHA DINÁMICA
   const getFechaHoy = () => {
@@ -80,7 +95,9 @@ export default function DashboardView() {
     { icon: Calendar, label: "Calendario", color: "#06b6d4", path: "calendar" },
   ];
 
-  if (loading) {
+  if (loading && !user) {
+    // Solo mostramos loading si NO tenemos usuario todavía (carga inicial)
+    // Esto evita parpadeos al volver al menú
     return (
       <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
         <ActivityIndicator size="large" color="#a855f7" />
@@ -103,8 +120,6 @@ export default function DashboardView() {
             </Text>
             <Text style={styles.dateText}>{getFechaHoy()}</Text>
           </View>
-          
-          {/* El botón Settings que estaba aquí ha sido eliminado */}
         </View>
 
         {/* CUADRÍCULA DE ACCIONES */}
@@ -158,13 +173,11 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    // Ya no es necesario space-between si solo hay un elemento, 
-    // pero no afecta dejarlo así.
     justifyContent: "space-between", 
     marginBottom: 10,
   },
   greetingText: {
-    fontSize: 24, // Aumenté un poco el tamaño para que luzca mejor solo
+    fontSize: 24, 
     fontWeight: "bold",
     color: "#1e293b",
     marginBottom: 4,
@@ -174,7 +187,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#475569",
   },
-  // ... Estilos de botones eliminados ya que no se usan en este archivo ...
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",

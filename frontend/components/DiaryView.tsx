@@ -308,8 +308,16 @@ export default function DiaryView() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#f8fafc" },
-  inner: { flex: 1, paddingBottom: 40 },
+  container: { 
+    flex: 1, 
+    padding: 16, 
+    backgroundColor: "#f8fafc",
+    paddingTop: 60 // ✅ AJUSTE 1: Margen superior para evitar barra de estado
+  },
+  inner: { 
+    flex: 1, 
+    paddingBottom: 120 // ✅ AJUSTE 2: Margen inferior GRANDE para que la última tarjeta se vea
+  },
   title: { fontSize: 24, fontWeight: "700", color: "#0f172a", marginBottom: 4 },
   subtitle: { color: "#475569", marginBottom: 12 },
   cardContent: { padding: 16 },

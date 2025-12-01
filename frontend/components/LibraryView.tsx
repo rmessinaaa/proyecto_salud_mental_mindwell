@@ -116,7 +116,11 @@ export default function LibraryView() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f8fafc" }}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={{ paddingBottom: 120 }} // ✅ AUMENTADO A 120 PARA QUE SE VEA EL TIP CARD
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* Header */}
         <View style={{ marginBottom: 20 }}>
@@ -209,7 +213,7 @@ export default function LibraryView() {
           </TouchableOpacity>
         ))}
 
-        {/* Tip Card */}
+        {/* Tip Card - Ahora sí debería verse completa */}
         <View style={styles.tipCard}>
           <View style={styles.tipIcon}>
             <BookOpen size={24} color="white" />
@@ -269,7 +273,10 @@ export default function LibraryView() {
 //   STYLES
 // ----------------------
 const styles = StyleSheet.create({
-  container: { padding: 16 },
+  container: { 
+    padding: 16,
+    paddingTop: 60 // ✅ AJUSTE: Margen superior para evitar superposición con notificaciones
+  },
   title: { fontSize: 28, fontWeight: "800", color: "#1e293b" },
   subtitle: { fontSize: 16, color: "#64748b", marginTop: 4 },
   

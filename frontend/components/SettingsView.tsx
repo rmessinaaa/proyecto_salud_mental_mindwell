@@ -21,10 +21,9 @@ import { api } from "../services/api";
 
 // UI Components
 import { Card } from "../components/ui/card";
-import { Badge } from "../components/ui/badge";
 
 import {
-  User, Bell, LogOut, Globe, Pencil, ChevronLeft, X, Clock, ChevronDown
+  User, Bell, LogOut, Globe, Pencil, ChevronLeft, X, Clock, ChevronDown, Check
 } from "lucide-react-native";
 
 LogBox.ignoreLogs([
@@ -47,6 +46,9 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // ✅ NUEVO ESTADO: Controla si estamos editando o solo viendo
+  const [isEditing, setIsEditing] = useState(false);
 
   // Perfil
   const [biografia, setBiografia] = useState("");
@@ -144,25 +146,19 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
     } catch (error) { Alert.alert("Error", "No se pudo configurar."); setNotifications(prev => ({ ...prev, daily: false })); } finally { setSaving(false); }
   };
 
-  // ✅ LÓGICA CORREGIDA Y DEPURADA DE GUARDAR CAMBIOS
   const handleGeneralSave = async () => {
-    console.log("1. Botón presionado. Guardando biografía:", biografia);
-    
     if (saving) return;
     setSaving(true);
-
     try {
-      console.log("2. Enviando petición a API...");
-      const response = await api.updatePerfil({
-        biografia: biografia,
+      const response = await api.updatePerfil({ 
+        username: username,
+        email: email,
+        biografia: biografia 
       });
-      
-      console.log("3. Respuesta exitosa:", response);
+      // ✅ Si guardamos con éxito, salimos del modo edición
+      setIsEditing(false);
       Alert.alert("¡Guardado!", "Tu perfil se ha actualizado correctamente.");
-      
     } catch (error: any) {
-      console.log("4. Error en la petición:", error);
-      // Mostramos el error real en la alerta para saber qué pasa
       Alert.alert("Error al guardar", error.message || "Error de conexión");
     } finally {
       setSaving(false);
@@ -196,7 +192,9 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
           <View style={styles.cardContent}>
             <View style={styles.cardHeader}>
               <User size={24} color="#a855f7" />
-              <Text style={styles.cardTitle}>Perfil</Text>
+              <View style={{flex:1}}><Text style={styles.cardTitle}>Perfil</Text></View>
+              {/* Indicador de estado */}
+              {isEditing && <Text style={{fontSize:12, color:'#a855f7', fontWeight:'600'}}>Editando...</Text>}
             </View>
 
             <View style={styles.profileSection}>
@@ -204,21 +202,59 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{username ? username.charAt(0).toUpperCase() : "U"}</Text>
                 </View>
-                <TouchableOpacity style={styles.editBadge}><Pencil size={14} color="#fff" /></TouchableOpacity>
+                
+                {/* ✅ BOTÓN DE EDICIÓN: Funciona como toggle (Lápiz <-> X) */}
+                <TouchableOpacity 
+                  style={[styles.editBadge, isEditing && styles.editBadgeActive]} 
+                  onPress={() => setIsEditing(!isEditing)}
+                >
+                  {isEditing ? (
+                    <X size={14} color="#fff" />
+                  ) : (
+                    <Pencil size={14} color="#fff" />
+                  )}
+                </TouchableOpacity>
               </View>
 
               <View style={styles.formContainer}>
+                
+                {/* INPUT USUARIO */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Usuario</Text>
-                  <TextInput style={[styles.input, { backgroundColor: '#f1f5f9', color: '#64748b' }]} value={username} editable={false} />
+                  <TextInput 
+                    // ✅ Estilo condicional: Si NO editamos, usamos inputReadonly
+                    style={[styles.input, !isEditing && styles.inputReadonly]} 
+                    value={username} 
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                    editable={isEditing} // ✅ Solo editable si isEditing es true
+                  />
                 </View>
+
+                {/* INPUT EMAIL */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Correo Electrónico</Text>
-                  <TextInput style={[styles.input, { backgroundColor: '#f1f5f9', color: '#64748b' }]} value={email} editable={false} />
+                  <TextInput 
+                    style={[styles.input, !isEditing && styles.inputReadonly]} 
+                    value={email} 
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={isEditing}
+                  />
                 </View>
+
+                {/* INPUT BIOGRAFÍA */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Biografía</Text>
-                  <TextInput style={styles.input} placeholder="Sobre ti..." value={biografia} onChangeText={setBiografia} multiline />
+                  <TextInput 
+                    style={[styles.input, !isEditing && styles.inputReadonly]} 
+                    placeholder={isEditing ? "Escribe sobre ti..." : "Sin biografía"} 
+                    value={biografia} 
+                    onChangeText={setBiografia} 
+                    multiline 
+                    editable={isEditing}
+                  />
                 </View>
               </View>
             </View>
@@ -227,18 +263,25 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
             <View style={styles.rowBetween}>
               <View><Text style={styles.label}>Nivel {nivel}</Text></View>
               
-              {/* ✅ BOTÓN CORREGIDO: TouchableOpacity directo */}
-              <TouchableOpacity 
-                onPress={handleGeneralSave} 
-                disabled={saving}
-                style={styles.btnPrimary}
-              >
-                {saving ? (
-                    <ActivityIndicator color="white" size="small" />
-                ) : (
-                    <Text style={styles.btnPrimaryText}>Guardar Cambios</Text>
-                )}
-              </TouchableOpacity>
+              {/* ✅ BOTÓN GUARDAR: Solo visible en modo edición */}
+              {isEditing ? (
+                <TouchableOpacity 
+                    onPress={handleGeneralSave} 
+                    disabled={saving}
+                    style={styles.btnPrimary}
+                >
+                    {saving ? (
+                        <ActivityIndicator color="white" size="small" />
+                    ) : (
+                        <View style={{flexDirection:'row', alignItems:'center', gap:4}}>
+                            <Check size={16} color="white" />
+                            <Text style={styles.btnPrimaryText}>Guardar</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+              ) : (
+                <Text style={{color: '#94a3b8', fontSize: 13}}>Modo Lectura</Text>
+              )}
             </View>
           </View>
         </Card>
@@ -338,7 +381,11 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#f8fafc",
+    paddingTop: 20 
+  },
   inner: { flex: 1, padding: 16 },
   space: { height: 16 },
   headerContainer: { marginBottom: 24 },
@@ -350,13 +397,49 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
   cardTitle: { fontSize: 18, fontWeight: "600", color: "#1e293b" },
   label: { color: "#334155", marginBottom: 6, fontSize: 14, fontWeight: "600" },
-  input: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 12, backgroundColor: "#fff", color: "#1e293b", fontSize: 15 },
-  profileSection: { flexDirection: "row", gap: 16, marginBottom: 16 },
-  avatarContainer: { alignItems: 'center' },
+  
+  // ✅ Estilo base del input (Modo Edición)
+  input: { 
+    borderWidth: 1, 
+    borderColor: "#cbd5e1", 
+    borderRadius: 8, 
+    padding: 12, 
+    backgroundColor: "#fff", 
+    color: "#1e293b", 
+    fontSize: 15 
+  },
+  
+  // ✅ Nuevo estilo: Modo Lectura (Sin bordes, sin fondo)
+  inputReadonly: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 0, // Alinear con el título
+    color: '#0f172a', // Texto un poco más oscuro
+    fontWeight: '500'
+  },
+  
+  profileSection: { 
+    flexDirection: "column", 
+    alignItems: "center",    
+    gap: 16, 
+    marginBottom: 16 
+  },
+  avatarContainer: { 
+    alignItems: 'center',
+    marginBottom: 4 
+  },
   avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#a855f7", alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
-  editBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', padding: 6, borderRadius: 20, borderWidth: 1, borderColor: '#e2e8f0' },
-  formContainer: { flex: 1, gap: 12 },
+  
+  // Badge del botón editar
+  editBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#a855f7', padding: 8, borderRadius: 20, borderWidth: 2, borderColor: '#fff' },
+  editBadgeActive: { backgroundColor: '#ef4444' }, // Rojo cuando está activo (para cancelar)
+
+  formContainer: { 
+    width: '100%', 
+    gap: 12 
+  },
   inputGroup: { marginBottom: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
@@ -376,7 +459,6 @@ const styles = StyleSheet.create({
   saveButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   fakeSelect: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 12, backgroundColor: "#fff", flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   inputText: { color: "#1e293b" },
-  // ✅ NUEVO ESTILO PARA EL BOTÓN NATIVO
   btnPrimary: { backgroundColor: '#a855f7', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnPrimaryText: { color: 'white', fontWeight: '600', fontSize: 14 },
 });

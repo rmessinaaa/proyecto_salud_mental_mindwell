@@ -82,7 +82,8 @@ export function WellnessView() {
               </View>
 
               <View style={styles.buttonOutlineWrap}>
-                <Button onPress={() => { /* Ver recursos */ }}>
+                {/* CAMBIO: Ahora navega a /library */}
+                <Button onPress={() => router.push("/library")}>
                   <Text style={styles.buttonOutlineText}>Ver recursos</Text>
                 </Button>
               </View>
@@ -91,14 +92,7 @@ export function WellnessView() {
         </View>
       </Card>
 
-      {/* Ejemplo de uso de router.push */}
-      <Card>
-        <View style={styles.cardPadding}>
-          <Button onPress={() => router.push("/library")}>
-            <Text style={styles.buttonOutlineText}>Ver ejercicios de sueño</Text>
-          </Button>
-        </View>
-      </Card>
+      {/* CAMBIO: Se eliminó la tarjeta extra de "Ver ejercicios de sueño" que estaba aquí */}
 
       {/* Aquí irían el resto de tus secciones (recursos de emergencia, ejercicios, sueño, sonidos, contactos, etc.) */}
     </ScrollView>
@@ -106,7 +100,11 @@ export function WellnessView() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: "#ffffff" },
+  container: { 
+    padding: 16, 
+    paddingTop: 60, // CAMBIO: Aumentado para bajar el contenido y no chocar con notificaciones
+    backgroundColor: "#ffffff" 
+  },
   header: { marginBottom: 16 },
   title: { fontSize: 20, fontWeight: "700", color: "#0f172a" },
   subtitle: { color: "#64748b", marginTop: 4 },
