@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Heart, User, Lock, Check } from "lucide-react-native"; 
 import { useRouter } from "expo-router";
-import AsyncStorage from '@react-native-async-storage/async-storage'; // ✅ LIBRERÍA NECESARIA
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { api } from "../services/api"; 
 
 export default function LoginView() {
@@ -11,15 +11,14 @@ export default function LoginView() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false); // ✅ Estado para el checkbox
+  const [rememberMe, setRememberMe] = useState(false); 
 
-  // ✅ 1. VERIFICAR SESIÓN AUTOMÁTICA AL INICIAR
+  // 1. VERIFICAR SESIÓN AUTOMÁTICA AL INICIAR
   useEffect(() => {
     const checkLogin = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
         if (token) {
-          // (Opcional) Aquí podrías validar si el token sigue vivo con la API
           console.log("Sesión recuperada");
           router.replace("/(tabs)/dashboard");
         }
@@ -46,16 +45,19 @@ export default function LoginView() {
 
       console.log("Login exitoso.");
       
-      // ✅ 2. GUARDAR TOKEN SI "RECORDARME" ESTÁ ACTIVO
+      // ==========================================
+      // CORRECCIÓN CRÍTICA AQUÍ
+      // ==========================================
+      // Guardamos el token SIEMPRE para que la sesión funcione.
+      // Si no lo guardamos aquí, las peticiones siguientes fallarán (401).
+      await AsyncStorage.setItem('userToken', response.token);
+      await AsyncStorage.setItem('userId', String(response.id));
+
+      // Si quisieras implementar una lógica estricta de "Recordarme",
+      // podrías guardar una bandera extra, pero el token es obligatorio tenerlo.
       if (rememberMe) {
-        await AsyncStorage.setItem('userToken', response.token);
-      } else {
-        // Si no marca la casilla, es buena práctica limpiar cualquier token viejo
-        await AsyncStorage.removeItem('userToken');
+        await AsyncStorage.setItem('rememberUser', 'true');
       }
-      
-      // Configurar token en la instancia de API (si usas axios global)
-      // api.setAuthToken(response.token); 
 
       router.replace("/(tabs)/dashboard");
 

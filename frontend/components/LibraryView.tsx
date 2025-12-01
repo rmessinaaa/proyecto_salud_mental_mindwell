@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { 
   View, 
   Text, 
-  TextInput, 
   ScrollView, 
   TouchableOpacity, 
   StyleSheet, 
@@ -12,7 +11,7 @@ import {
 } from "react-native";
 import { 
   Heart, Wind, Brain, Star, Clock, Headphones, 
-  Search, Play, BookOpen, X 
+  Play, BookOpen, X 
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 
@@ -49,7 +48,6 @@ const exercises = [
 // ----------------------
 export default function LibraryView() {
   const router = useRouter();
-  const [search, setSearch] = useState("");
   const [loadingAction, setLoadingAction] = useState(false);
   
   // Estado para el modal y recurso activo
@@ -126,18 +124,6 @@ export default function LibraryView() {
         <View style={{ marginBottom: 20 }}>
           <Text style={styles.title}>Biblioteca</Text>
           <Text style={styles.subtitle}>Herramientas para tu mente</Text>
-        </View>
-
-        {/* Buscar */}
-        <View style={styles.searchContainer}>
-          <Search size={20} color="#94a3b8" style={styles.searchIcon} />
-          <TextInput 
-            placeholder="Buscar ejercicios..." 
-            style={styles.input} 
-            value={search}
-            onChangeText={setSearch}
-            placeholderTextColor="#94a3b8"
-          />
         </View>
 
         {/* Categorías */}
@@ -280,9 +266,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: "800", color: "#1e293b" },
   subtitle: { fontSize: 16, color: "#64748b", marginTop: 4 },
   
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: "white", borderRadius: 12, paddingHorizontal: 12, marginTop: 20, borderWidth: 1, borderColor: '#e2e8f0' },
-  searchIcon: { marginRight: 8 },
-  input: { flex: 1, paddingVertical: 12, fontSize: 16, color: '#1e293b' },
+  // Hemos eliminado searchContainer, searchIcon e input ya que no se usan
   
   sectionTitle: { fontSize: 20, fontWeight: "700", marginTop: 24, marginBottom: 12, color: "#334155" },
   

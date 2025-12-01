@@ -67,6 +67,8 @@ export default function GameView() {
   return (
     <ScrollView 
         style={styles.container}
+        contentContainerStyle={styles.contentContainer} // ✅ AÑADIDO: Estilo para el contenedor del contenido
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
     >
       
@@ -181,6 +183,9 @@ export default function GameView() {
         </View>
       </View>
 
+      {/* ✅ ESPACIADOR FINAL: Para asegurar que el scroll llegue hasta abajo */}
+      <View style={{ height: 120 }} />
+
     </ScrollView>
   );
 }
@@ -188,9 +193,13 @@ export default function GameView() {
 // ESTILOS
 const styles = StyleSheet.create({
   container: { 
-    padding: 16, 
+    flex: 1, // Importante para que el scroll ocupe toda la pantalla
     backgroundColor: '#f8fafc',
-    paddingTop: 60 // ✅ AJUSTE: Margen superior para evitar superposición
+  },
+  contentContainer: {
+    padding: 16,
+    paddingTop: 60, // Mantenemos el margen superior aquí
+    paddingBottom: 40, // Padding base inferior
   },
   section: { marginBottom: 16 },
   title: { fontSize: 28, fontWeight: "700", color: "#1e1e1e" },

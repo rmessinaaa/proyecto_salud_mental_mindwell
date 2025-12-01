@@ -316,27 +316,6 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
 
         <View style={styles.space} />
 
-        {/* IDIOMA Y REGIÓN */}
-        <Card>
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <Globe size={24} color="#14b8a6" />
-              <Text style={styles.cardTitle}>Idioma y región</Text>
-            </View>
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Idioma</Text>
-                <TouchableOpacity style={styles.fakeSelect}>
-                  <Text style={styles.inputText}>Español</Text>
-                  <ChevronDown size={16} color="#64748b" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Card>
-
-        <View style={styles.space} />
-
         {/* LOGOUT */}
         <Card>
           <TouchableOpacity style={[styles.cardContent, styles.logoutCard]} onPress={handleLogout}>

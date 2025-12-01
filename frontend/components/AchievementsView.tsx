@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
-import { useFocusEffect } from "expo-router"; // ✅ Importante: Usar useFocusEffect
+import { useFocusEffect } from "expo-router"; 
 import { api, LogrosResponse } from "../services/api";
 
 export default function AchievementsView() {
@@ -20,8 +20,6 @@ export default function AchievementsView() {
     }
   };
 
-  // ✅ CAMBIO CLAVE: Usamos useFocusEffect en lugar de useEffect
-  // Esto hace que la lista se actualice automáticamente cada vez que entras a la pantalla
   useFocusEffect(
     useCallback(() => {
       fetchLogros();
@@ -109,6 +107,7 @@ export default function AchievementsView() {
           </View>
         ))}
       </View>
+      <View style={{height: 40}} /> 
     </ScrollView>
   );
 }

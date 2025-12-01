@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // CONFIGURACIÓN DE RED
 // ==========================================
 // ⚠️ Asegúrate de que esta IP sea la correcta de tu PC
+// Si usas emulador Android (Android Studio), usa 'http://10.0.2.2:8000/api'
+// Si usas dispositivo físico o Expo Go, usa la IP de tu PC ej: 'http://192.168.1.81:8000/api'
 const API_URL = 'http://192.168.1.81:8000/api';
 
 // ==========================================
@@ -161,29 +163,10 @@ export const api = {
         body: JSON.stringify(datos),
       });
 
-      if (!response.ok) {
-        // ✅ CAMBIO PRINCIPAL: Leemos el JSON de error del backend
-        const errorData = await response.json().catch(() => null);
-        
-        let mensajeError = "Error actualizando perfil";
-        
-        if (errorData) {
-            // Django DRF devuelve errores como: { username: ["Ese usuario ya existe."], email: [...] }
-            // Convertimos los valores (arrays de errores) en una lista plana
-            const mensajes = Object.values(errorData).flat();
-            if (mensajes.length > 0) {
-                // Unimos los mensajes con saltos de línea para mostrarlos en el Alert
-                mensajeError = mensajes.join("\n"); 
-            }
-        }
-        
-        // Lanzamos el error con el texto específico para que lo capture la vista
-        throw new Error(mensajeError);
-      }
-
+      if (!response.ok) throw new Error("Error actualizando perfil");
       return await response.json();
     } catch (error) {
-      // Eliminamos el console.error para evitar logs ruidosos de validación
+      console.error("Error update perfil:", error);
       throw error;
     }
   },

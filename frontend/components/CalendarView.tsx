@@ -9,6 +9,9 @@ import {
 } from "lucide-react-native";
 import * as Notifications from 'expo-notifications';
 
+// ⚠️ Asegúrate de que la ruta de importación sea correcta según tu estructura de carpetas
+// Si el archivo está en components/ui/, usa "../../services/api"
+// Si el archivo está en components/, usa "../services/api"
 import { api, RegistroDiario, UserProfile } from "../services/api"; 
 
 // ✅ SILENCIADOR DE ERRORES DE EXPO GO
@@ -28,7 +31,9 @@ Notifications.setNotificationHandler({
 });
 
 const daysOfWeek = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const currentMonth = "Noviembre 2025"; 
+
+// ✅ CAMBIO 1: Mes Actualizado
+const currentMonth = "Diciembre 2025"; 
 
 export default function CalendarView() {
   const router = useRouter();
@@ -249,7 +254,8 @@ export default function CalendarView() {
            recordatorios.some(r => checkDate(r.fecha_hora));
   };
 
-  const calendarDays = Array.from({ length: 30 }, (_, i) => ({
+  // ✅ CAMBIO 2: Generar 31 días para Diciembre
+  const calendarDays = Array.from({ length: 31 }, (_, i) => ({
     day: i + 1, hasActivity: tieneActividad(i + 1), isToday: i + 1 === today.getDate(),
   }));
 

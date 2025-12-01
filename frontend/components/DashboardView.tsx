@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,11 +6,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert
 } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 
-// Importamos los iconos
+// Icons
 import {
   Book,
   TrendingUp,
@@ -22,58 +21,36 @@ import {
   Calendar,
 } from "lucide-react-native";
 
-// Importamos la API y el tipo de dato
+// API
 import { api, UserProfile } from "../services/api";
 
-// ==========================================
-// COMPONENTE PRINCIPAL
-// ==========================================
-
 export default function DashboardView() {
-  
-  // 1. ESTADOS DE DATOS
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 2. EFECTO DE CARGA (Optimizado)
-  // useFocusEffect asegura que esto corra cada vez que la pantalla se hace visible
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true; // Bandera para evitar actualizaciones si el componente se desmonta
+  useEffect(() => {
+    cargarDatos();
+  }, []);
 
-      const fetchProfile = async () => {
-        try {
-          // Llamamos a la API directamente aquí para asegurar frescura
-          const datos = await api.getPerfil();
-          
-          if (isActive) {
-            setUser(datos);
-          }
-        } catch (error) {
-          console.log("Error cargando perfil en dashboard:", error);
-        } finally {
-          if (isActive) {
-            setLoading(false);
-          }
-        }
-      };
+  const cargarDatos = async () => {
+    try {
+      const datos = await api.getPerfil();
+      if (datos) {
+        setUser(datos);
+      }
+    } catch (error) {
+      console.log("No se pudo cargar el perfil en el Dashboard.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      fetchProfile();
-
-      return () => {
-        isActive = false; // Limpieza al perder el foco
-      };
-    }, [])
-  );
-
-  // 3. GENERAR FECHA DINÁMICA
   const getFechaHoy = () => {
     const opciones: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const fecha = new Date().toLocaleDateString('es-ES', opciones);
     return fecha.charAt(0).toUpperCase() + fecha.slice(1);
   };
 
-  // Navegación
   const go = (path: string) => {
     router.push(`/(tabs)/${path}` as any);
   };
@@ -95,9 +72,7 @@ export default function DashboardView() {
     { icon: Calendar, label: "Calendario", color: "#06b6d4", path: "calendar" },
   ];
 
-  if (loading && !user) {
-    // Solo mostramos loading si NO tenemos usuario todavía (carga inicial)
-    // Esto evita parpadeos al volver al menú
+  if (loading) {
     return (
       <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
         <ActivityIndicator size="large" color="#a855f7" />
@@ -107,12 +82,8 @@ export default function DashboardView() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-    >
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.headerSpace}>
-        {/* HEADER LIMPIO (Sin botón de ajustes) */}
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.greetingText}>
@@ -122,28 +93,17 @@ export default function DashboardView() {
           </View>
         </View>
 
-        {/* CUADRÍCULA DE ACCIONES */}
         <View style={styles.gridContainer}>
           {quickActions.map((item, index) => (
             <TouchableOpacity
               key={index}
-              onPress={() =>
-                specialPaths.includes(item.path)
-                  ? go2(item.path)
-                  : go(item.path)
-              }
+              onPress={() => specialPaths.includes(item.path) ? go2(item.path) : go(item.path)}
               style={styles.card}
             >
-              <View
-                style={[
-                  styles.iconContainer,
-                  { backgroundColor: item.color + "20" },
-                ]}
-              >
+              <View style={[styles.iconContainer, { backgroundColor: item.color + "20" }]}>
                 {/* @ts-ignore */}
                 <item.icon color={item.color} size={28} />
               </View>
-
               <Text style={styles.cardLabel}>{item.label}</Text>
             </TouchableOpacity>
           ))}
@@ -153,67 +113,15 @@ export default function DashboardView() {
   );
 }
 
-// ==========================================
-// ESTILOS
-// ==========================================
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 40,
-    paddingTop: 50,
-  },
-  headerSpace: {
-    gap: 24,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between", 
-    marginBottom: 10,
-  },
-  greetingText: {
-    fontSize: 24, 
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginBottom: 4,
-    textTransform: 'capitalize'
-  },
-  dateText: {
-    fontSize: 14,
-    color: "#475569",
-  },
-  gridContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  card: {
-    width: "48%",
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    alignItems: "flex-start",
-  },
-  iconContainer: {
-    padding: 10,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  cardLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1e293b",
-  },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  contentContainer: { padding: 16, paddingBottom: 40, paddingTop: 50 },
+  headerSpace: { gap: 24 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  greetingText: { fontSize: 24, fontWeight: "bold", color: "#1e293b", marginBottom: 4, textTransform: 'capitalize' },
+  dateText: { fontSize: 14, color: "#475569" },
+  gridContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
+  card: { width: "48%", backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, alignItems: "flex-start" },
+  iconContainer: { padding: 10, borderRadius: 12, marginBottom: 12 },
+  cardLabel: { fontSize: 16, fontWeight: "600", color: "#1e293b" },
 });
